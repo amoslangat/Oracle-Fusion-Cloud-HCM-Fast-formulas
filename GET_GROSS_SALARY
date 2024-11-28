@@ -1,0 +1,477 @@
+/*****************************************************************************
+Formula name:  Get Salary Monitor 
+Formula type: Oracle Payroll
+Description:
+
+Created Date: 01-Dec-2022
+Updated Date: 27-11-2023
+******************************************************************************/
+ALIAS per_per_contact_person_id             AS cont_person_id
+ALIAS per_per_contact_contact_type          AS cont_type
+ALIAS per_per_contact_date_of_birth         AS cont_dob_date
+ALIAS per_per_cont_rel_effective_start_date AS cont_start_date
+ALIAS PER_PER_CONT_REL_EFFECTIVE_END_DATE 	AS cont_end_date
+ALIAS per_per_cont_rel_cont_attribute5      AS cont_child_flag /* Child Eligibility */
+ALIAS per_per_contact_sex                   AS cont_gender
+
+default_data_value for basic_salary_amount_entry_value is 0
+default_data_value for HOUSING_ALLOWANCE_AMOUNT_ENTRY_VALUE is 0
+default_data_value for TRANSPORTATION_ALLOWANCE_AMOUNT_ENTRY_VALUE is 0
+default_data_value for MONTHLY_OTHER_ALLOWANCE_AMOUNT_ENTRY_VALUE is 0
+default_data_value for TELEPHONE_ALLOWANCE_AMOUNT_ENTRY_VALUE is 0
+
+default_data_value for C2i_HOUSING_ALLOWANCE_AMOUNT_ENTRY_VALUE is 0
+default_data_value for C2i_TRANSPORTATION_ALLOWANCE_AMOUNT_ENTRY_VALUE is 0
+default_data_value for C2i_MONTHLY_OTHER_ALLOWANCE_AMOUNT_ENTRY_VALUE is 0
+default_data_value for C2i_TELEPHONE_ALLOWANCE_AMOUNT_ENTRY_VALUE is 0
+
+DEFAULT_DATA_VALUE FOR cont_person_id     IS 0
+DEFAULT_DATA_VALUE FOR cont_type          IS 'XXX'
+DEFAULT_DATA_VALUE FOR cont_gender        IS 'XXX'
+DEFAULT_DATA_VALUE FOR cont_child_flag    IS 'X'
+DEFAULT_DATA_VALUE FOR cont_start_date    IS '1951/01/01 00:00:00' (Date)
+DEFAULT_DATA_VALUE FOR cont_end_date      IS '4712/12/31 00:00:00' (DATE)
+DEFAULT_DATA_VALUE FOR cont_dob_date      IS '1951/01/01 00:00:00' (Date)
+
+
+default for pay_earn_period_end is '4712/12/31 00:00:00' (date)
+default for pay_earn_period_start is '0001/01/01 00:00:00' (date)
+default for asg_hr_asg_id    is 0
+default for p_eff_date is '0001/01/01 00:00:00' (date)
+
+inputs are p_eff_date
+
+
+
+l_pay_sdate			= pay_earn_period_start
+l_pay_edate			= pay_earn_period_end
+l_assignment_id     = asg_hr_asg_id
+l_basic				= 0
+l_hra				= 0 
+l_tra				= 0
+l_mon_oth_allow		= 0
+l_tele_allow		= 0
+l_child_amount		= 0
+l_social			= 0
+l_gross				= 0 
+l_person_id			= get_context(PERSON_ID, 0)
+l_tele_amount       = 0
+l_ca_amount			= 0
+l_child_count		= 0
+
+p_date = to_char(p_eff_date,'yyyy-MM-dd')
+
+l_log = pay_internal_log_write('(get_gross_salary) : l_pay_sdate '||to_char(p_eff_date))
+l_log = pay_internal_log_write('(get_gross_salary) : l_person_id '||to_char(l_person_id))
+
+
+
+l_eff_date = p_eff_date
+l_type = 0
+
+/* ================= Person BU =============== */
+
+CALL_FORMULA('ALDAR GET HR DATA',
+                 l_assignment_id               > 'hr_id',
+                  l_eff_date           > 'eff_date',
+                 'Business Unit' 		 > 'mode',
+                 l_Business_unit             < 'l_text'  DEFAULT 'X'
+            )
+l_log = pay_internal_log_write('(get_gross_salary) Employee Business Unit : '||l_Business_unit)
+
+l_CAL_MODE = GET_TABLE_VALUE('ALDAR_BUSINESS_UNIT_ELIGIBILITY','Eligibility',l_Business_unit,'0')
+l_log = ESS_LOG_WRITE('(get_gross_salary) :'||l_CAL_MODE)
+
+if(l_CAL_MODE = 'C2I')then(l_type = 1)
+
+/* =============== Entry ID Start ================ */
+
+/*Aldar Element Entries start*/
+if(l_type = 0) then (  
+	
+	l_housing_entry_id = get_value_set('ALDAR_GET_ELEMENT_ENTRY','|=p_person_id='''||to_char(l_person_id)||''''||'|p_eff_date='''||p_date||''''||'|p_element='''||'Housing Allowance'||'''')
+	l_transportation_entry_id  = get_value_set('ALDAR_GET_ELEMENT_ENTRY','|=p_person_id='''||to_char(l_person_id)||''''||'|p_eff_date='''||p_date||''''||'|p_element='''||'Transportation Allowance'||'''')
+	l_telephone_entry_id =  get_value_set('ALDAR_GET_ELEMENT_ENTRY','|=p_person_id='''||to_char(l_person_id)||''''||'|p_eff_date='''||p_date||''''||'|p_element='''||'Telephone Allowance'||'''')
+	
+	l_log = pay_internal_log_write('(get_gross_salary) : l_transportation_entry_id '|| l_transportation_entry_id)
+	l_log = pay_internal_log_write('(get_gross_salary) : l_telephone_entry_id '|| l_telephone_entry_id)
+	l_log = pay_internal_log_write('(get_gross_salary) : l_housing_entry_id '|| l_housing_entry_id)
+	
+	)/*Aldar Element Entries end*/
+	
+/*C2i Element Entries start*/	
+if(l_type = 1)	then(
+	
+	l_c2i_housing_entry_id = get_value_set('ALDAR_GET_ELEMENT_ENTRY','|=p_person_id='''||to_char(l_person_id)||''''||'|p_eff_date='''||p_date||''''||'|p_element='''||'C2i Housing Allowance'||'''')
+	l_c2i_transportation_entry_id  = get_value_set('ALDAR_GET_ELEMENT_ENTRY','|=p_person_id='''||to_char(l_person_id)||''''||'|p_eff_date='''||p_date||''''||'|p_element='''||'C2i Transportation Allowance'||'''')
+	l_c2i_telephone_entry_id =  get_value_set('ALDAR_GET_ELEMENT_ENTRY','|=p_person_id='''||to_char(l_person_id)||''''||'|p_eff_date='''||p_date||''''||'|p_element='''||'C2i Telephone Allowance'||'''')
+	l_c2i_mon_oth_entry_id =  get_value_set('ALDAR_GET_ELEMENT_ENTRY','|=p_person_id='''||to_char(l_person_id)||''''||'|p_eff_date='''||p_date||''''||'|p_element='''||'C2i Monthly Other Allowance'||'''')
+	
+	l_log = pay_internal_log_write('(get_gross_salary) : l_c2i_housing_entry_id '|| l_c2i_housing_entry_id)
+	l_log = pay_internal_log_write('(get_gross_salary) : l_c2i_transportation_entry_id '|| l_c2i_transportation_entry_id)
+	l_log = pay_internal_log_write('(get_gross_salary) : l_c2i_telephone_entry_id '|| l_c2i_telephone_entry_id)
+	l_log = pay_internal_log_write('(get_gross_salary) : l_c2i_mon_oth_entry_id '|| l_c2i_mon_oth_entry_id)
+	
+	)/*C2i Element Entries end*/
+	
+	l_child_entry_id =  get_value_set('ALDAR_GET_ELEMENT_ENTRY','|=p_person_id='''||to_char(l_person_id)||''''||'|p_eff_date='''||p_date||''''||'|p_element='''||'Child Allowance'||'''')
+	l_social_entry_id = get_value_set('ALDAR_GET_ELEMENT_ENTRY','|=p_person_id='''||to_char(l_person_id)||''''||'|p_eff_date='''||p_date||''''||'|p_element='''||'Social Allowance'||'''')
+
+	l_log = pay_internal_log_write('(get_gross_salary) : l_child_entry_id '|| l_child_entry_id)
+	l_log = pay_internal_log_write('(get_gross_salary) : l_social_entry_id '|| l_social_entry_id)
+	
+
+
+/* =============== Entry ID End ================ */
+
+		/* =============== BASIC ================ */
+		k = 1
+		change_contexts (date_earned = l_eff_date) 
+		( 
+			while (basic_salary_amount_entry_value.exists (k)) loop
+			(
+				 if basic_salary_amount_entry_value[k] > 0 then
+				 (
+					  l_basic = basic_salary_amount_entry_value[k]/12
+							  l_log = pay_internal_log_write('(get_gross_salary) : Basic Salary Amount Entry Value '||to_char(l_basic))
+						  exit
+				 )
+				 k = k + 1
+			)
+		 )
+if(l_type = 0) then (
+		/* ================ ALDAR MONTHLY OTHER ALLOWANCE ============== */
+		k = 1
+		change_contexts (date_earned = l_eff_date) 
+		( 
+			while (MONTHLY_OTHER_ALLOWANCE_AMOUNT_ENTRY_VALUE.exists (k)) loop
+			(
+				 if MONTHLY_OTHER_ALLOWANCE_AMOUNT_ENTRY_VALUE[k] > 0 then
+				 (
+					  l_mon_oth_allow = MONTHLY_OTHER_ALLOWANCE_AMOUNT_ENTRY_VALUE[k]
+							  l_log = pay_internal_log_write('(get_gross_salary) :  Monthly Other Allowance Amount Entry Value '||to_char(l_mon_oth_allow))
+						  exit
+				 )
+				 k = k + 1
+			)
+		 )
+		 
+
+		 /**Getting Pay Scale of Employee **/
+		CALL_FORMULA('ALDAR GET HR DATA',l_assignment_id          > 'hr_id',l_eff_date     > 'eff_date','Pay Scale'  > 'mode',l_pay_scale   < 'l_text'  DEFAULT 'X' )
+		l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) l_pay_scale : '||l_pay_scale)
+
+		/**Getting if Employee is UAE National or not**/
+		CALL_FORMULA('ALDAR GET HR DATA',l_assignment_id          > 'hr_id',l_eff_date     > 'eff_date','UAE National'  > 'mode',l_uae_nationality   < 'l_text'  DEFAULT 'X')	
+		l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) l_uae_nationality : '||l_uae_nationality)
+
+		/**Getting grade of the Employee **/				
+		CALL_FORMULA('ALDAR Get HR Data',l_assignment_id          > 'hr_id',l_eff_date     > 'eff_date','Grade'  > 'mode',l_grade   < 'l_text'  DEFAULT 'X')
+		l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) l_grade : '||l_grade)
+
+			
+		/* ================ ALDAR HOUSING =============== */	
+		if to_number(l_housing_entry_id) > 0 then
+		(
+			k = 1
+			l_hra_amount = 0
+
+				CHANGE_CONTEXTS(date_earned = l_eff_date) 
+				( 
+					WHILE (HOUSING_ALLOWANCE_AMOUNT_ENTRY_VALUE.EXISTS (k)) LOOP
+					(
+						IF HOUSING_ALLOWANCE_AMOUNT_ENTRY_VALUE[k] > 0 THEN
+						(
+							l_hra_amount = HOUSING_ALLOWANCE_AMOUNT_ENTRY_VALUE[k]
+							l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Housing Amount : '||to_char(l_hra_amount))
+							EXIT
+						)
+						k = k + 1
+					)
+				)
+
+				if l_hra_amount <> 0 then
+				(
+					l_hra = l_hra_amount
+					l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Housing Entry Amount : '||to_char(l_hra))
+				)			
+				else if l_uae_nationality = 'Y' then
+				(
+					l_hra = to_number(GET_TABLE_VALUE('ALDAR_HOUSING_ALLOWANCE_UAE',l_pay_scale,l_grade,'0'))
+					l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Housing UAE : '||to_char(l_hra))
+				)
+				else
+				(
+					l_hra = to_number(GET_TABLE_VALUE('ALDAR_HOUSING_ALLOWANCE_EXPAT',l_pay_scale,l_grade,'0'))
+					l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Housing Expat : '||to_char(l_hra))
+				)
+		)
+
+		/* ================= ALDAR TRANSPORT ===============*/
+		if to_number(l_transportation_entry_id) > 0 then
+		(
+			k = 1
+			l_tra_amount = 0
+
+			CHANGE_CONTEXTS(date_earned = l_eff_date) 
+			( 
+				WHILE (TRANSPORTATION_ALLOWANCE_AMOUNT_ENTRY_VALUE.EXISTS (k)) LOOP
+				(
+					IF TRANSPORTATION_ALLOWANCE_AMOUNT_ENTRY_VALUE[k] > 0 THEN
+					(
+						l_tra_amount = TRANSPORTATION_ALLOWANCE_AMOUNT_ENTRY_VALUE[k]
+						l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Transportation Amount : '||to_char(l_tra_amount))
+						EXIT
+					)
+					k = k + 1
+				)
+			)
+
+			if l_tra_amount <> 0 then
+			(
+				l_tra = l_tra_amount
+				l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Transport Entry Amount : '||to_char(l_tra))
+
+			)			
+			else if l_uae_nationality = 'Y' then
+			(
+				l_tra = to_number(GET_TABLE_VALUE('ALDAR_TRANSPORTATION_ALLOWANCE_UAE',l_pay_scale,l_grade,'0'))
+				l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Transport UAE : '||to_char(l_tra))
+			)
+			else
+			(
+				l_tra = to_number(GET_TABLE_VALUE('ALDAR_TRANSPORTATION_ALLOWANCE_EXPAT',l_pay_scale,l_grade,'0'))
+				l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Transport Expat : '||to_char(l_tra))
+			)	
+		)
+
+		/* =============== ALDAR TELEPHONE ================ */
+		if to_number(l_telephone_entry_id) > 0 then
+		(
+			k = 1
+			l_tele_amount = 0
+
+			CHANGE_CONTEXTS(date_earned = l_eff_date) 
+			( 
+				WHILE (TELEPHONE_ALLOWANCE_AMOUNT_ENTRY_VALUE.EXISTS (k)) LOOP
+				(
+					IF TELEPHONE_ALLOWANCE_AMOUNT_ENTRY_VALUE[k] > 0 THEN
+					(
+						l_tele_amount = TELEPHONE_ALLOWANCE_AMOUNT_ENTRY_VALUE[k]
+						l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Telephone Amount : '||to_char(l_tele_amount))
+						EXIT
+					)
+					k = k + 1
+				)
+			)
+
+			if l_tele_amount <> 0 then
+			(			
+				l_tele_amount = l_tele_amount
+				l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Telephone Entry Amount : '||to_char(l_tele_amount))
+			)			
+			else if l_uae_nationality = 'Y' then
+			(
+				l_tele_amount = to_number(GET_TABLE_VALUE('ALDAR_TELEPHONE_ALLOWANCE_UAE',l_pay_scale,l_grade,'0'))
+				l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Telephone UAE : '||to_char(l_tele_amount))
+			)
+			else
+			(
+				l_tele_amount = to_number(GET_TABLE_VALUE('ALDAR_TELEPHONE_ALLOWANCE_EXPAT',l_pay_scale,l_grade,'0'))
+				l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Telephone Expat : '||to_char(l_tele_amount))
+			)
+		)
+)
+		/* ==================== Common CHILD ALLOWANCE ================= */
+		if to_number(l_child_entry_id) > 0 then
+		(
+			l_ca_amount = to_number(GET_TABLE_VALUE('ALDAR_CHILD_ALLOWANCE_AMOUNT','Child_Allowance','Amount','0'))
+
+			I = 1
+			l_child_amount = 0
+			l_child_count = 0
+
+			WHILE cont_person_id.EXISTS(I) LOOP
+			(
+				l_c_dob         = cont_dob_date[i]
+				
+				l_c_type        = cont_type[i]
+				l_c_gender      = cont_gender[i]
+				l_c_flag	= cont_child_flag [i]
+				
+				l_c_start_date  = cont_start_date[i]
+				l_c_end_date  = cont_end_date[i]
+
+				l_child_count_l	= 0
+
+						
+				l_age           = round (MONTHS_BETWEEN(pay_earn_period_start,l_c_dob)/12,2)
+				l_age_month_end = round (MONTHS_BETWEEN(add_days(pay_earn_period_end,1),l_c_dob)/12,3)
+		 
+				l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Contact DOB          : '||TO_CHAR(l_c_dob,'DD-MM-YYYY'))
+				l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Contact Start Date   : '||TO_CHAR(l_c_start_date,'DD-MM-YYYY'))
+				l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Contact Type         : '|| l_c_type)
+				l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Contact Gender       : '|| l_c_gender)
+				l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Contact age          : '||TO_CHAR(l_age))
+				l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Contact age Month End: '||TO_CHAR(l_age_month_end))
+				l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Child Allowance Flag : '|| l_c_flag )
+						
+				/** If contact is eligible for allowance, male child with age less than 18 years or female child without age limit**/				
+				IF l_c_flag = 'Y' AND l_c_start_date <= l_eff_date and ((((l_age > 0 AND l_age <= 18) or (l_age <= 0 and l_age_month_end > 0)) AND l_c_gender = 'M' AND (l_c_type = 'C' OR l_c_type = 'IN_S'))  
+							OR (l_age > 0 and l_c_gender = 'F' AND (l_c_type = 'C' OR l_c_type = 'IN_D'))) THEN 
+				(
+				
+					if(l_eff_date >= l_c_start_date and  l_eff_date <= l_c_end_date) then (
+				
+					l_child_count_l  = 1
+					l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Child DOB: '||TO_CHAR(l_c_dob,'DD-MM-YYYY')||'; Age : '|| to_char(l_age)||'; Gender: '||l_c_gender||
+									'; Flag: '||l_c_flag||'; Count: '||to_char (l_child_count_l))
+					)				
+									
+				)
+
+				l_child_count = l_child_count + l_child_count_l
+				l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) Child Loop -------------------------------------------------')
+				l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) l_child_count: '||to_char(l_child_count))
+			
+				I = I + 1		
+			)
+
+			l_child_amount = l_ca_amount *  l_child_count
+			l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) l_child_amount: '||to_char(l_child_amount))
+
+		)
+
+
+		/* ================= Common SOCIAL ALLOWANCE =============== */
+		if to_number(l_social_entry_id) > 0 then
+		(
+			l_social = to_number(GET_TABLE_VALUE('ALDAR_SOCIAL_ALLOWANCE_AMOUNT','Social_Allowance','Amount','0'))
+			l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) l_social: '||to_char(l_social))
+
+		)
+
+
+
+
+if(l_type = 1) then (
+		
+								/*================ C2i MONTHLY OTHER ALLOWANCE ============== */
+						if to_number(l_c2i_mon_oth_entry_id) > 0 then
+					(
+						l_mon_oth = 0
+						k = 1
+						change_contexts (date_earned = l_eff_date) 
+						( 
+							while (C2I_MONTHLY_OTHER_ALLOWANCE_AMOUNT_ENTRY_VALUE.exists (k)) loop
+							(
+								 if C2I_MONTHLY_OTHER_ALLOWANCE_AMOUNT_ENTRY_VALUE[k] > 0 then
+								 (
+									  l_mon_oth = C2I_MONTHLY_OTHER_ALLOWANCE_AMOUNT_ENTRY_VALUE[k]
+											  l_log = pay_internal_log_write('(get_gross_salary) : C2i Monthly Other Allowance '||to_char(l_mon_oth))
+										  exit
+								 )
+								 k = k + 1
+							)
+						 )
+						
+
+									 
+
+						if(l_mon_oth = 0)then(
+						l_mon_oth_allow = l_basic * 0.4
+							)else (l_mon_oth_allow = l_mon_oth)
+							
+						) 
+						
+
+						
+					/* ================ C2i HOUSING =============== */	
+					if to_number(l_c2i_housing_entry_id) > 0 then
+					(
+						k = 1
+						l_hra_amount = 0
+
+							CHANGE_CONTEXTS(date_earned = l_eff_date) 
+							( 
+								WHILE (C2i_HOUSING_ALLOWANCE_AMOUNT_ENTRY_VALUE.EXISTS (k)) LOOP
+								(
+									IF C2i_HOUSING_ALLOWANCE_AMOUNT_ENTRY_VALUE[k] > 0 THEN
+									(
+										l_hra_amount = C2i_HOUSING_ALLOWANCE_AMOUNT_ENTRY_VALUE[k]
+										l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary): C2i Housing Amount : '||to_char(l_hra_amount))
+										EXIT
+									)
+									k = k + 1
+								)
+							)
+
+						if(l_hra_amount = 0)then(
+						l_hra = l_basic * 0.4
+							)else (l_hra = l_hra_amount)
+							
+								
+							
+					)
+
+					/* ================= C2i TRANSPORT ===============*/
+					if to_number(l_c2i_transportation_entry_id) > 0 then
+					(
+						k = 1
+						l_tra_amount = 0
+
+						CHANGE_CONTEXTS(date_earned = l_eff_date) 
+						( 
+							WHILE (c2i_TRANSPORTATION_ALLOWANCE_AMOUNT_ENTRY_VALUE.EXISTS (k)) LOOP
+							(
+								IF c2i_TRANSPORTATION_ALLOWANCE_AMOUNT_ENTRY_VALUE[k] > 0 THEN
+								(
+									l_tra_amount = c2i_TRANSPORTATION_ALLOWANCE_AMOUNT_ENTRY_VALUE[k]
+									l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary): C2i Transportation Amount : '||to_char(l_tra_amount))
+									EXIT
+								)
+								k = k + 1
+							)
+						)
+
+							if(l_tra_amount = 0)then(
+							l_tra = l_basic * 0.2
+							)else (l_tra = l_tra_amount)
+							
+					)
+
+					/* =============== C2i TELEPHONE ================ */
+					if to_number(l_c2i_telephone_entry_id) > 0 then
+					(
+						k = 1
+						l_tele_amount = 0
+
+						CHANGE_CONTEXTS(date_earned = l_eff_date) 
+						WHILE(C2i_TELEPHONE_ALLOWANCE_AMOUNT_ENTRY_VALUE.EXISTS(k)) LOOP
+							(
+								IF C2i_TELEPHONE_ALLOWANCE_AMOUNT_ENTRY_VALUE[k] > 0 THEN
+								(
+									l_tele_amount = C2i_TELEPHONE_ALLOWANCE_AMOUNT_ENTRY_VALUE[k]
+									l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary): C2i Telephone Amount : '||to_char(l_tele_amount))
+									EXIT
+								)
+								k = k + 1
+							)
+						)
+		
+
+	)
+
+l_gross = l_basic + l_hra + l_tra + l_mon_oth_allow + l_tele_amount + l_child_amount + l_social
+
+l_log = pay_internal_log_write('(get_gross_salary) l_gross : '||to_char(l_gross))
+
+l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) l_basic : '||to_char(l_basic))
+l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) l_hra: '||to_char(l_hra))
+l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) l_tra : '||to_char(l_tra))
+l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) l_mon_oth_allow : '||to_char(l_mon_oth_allow))
+l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) l_tele_amount : '||to_char(l_tele_amount))
+l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) l_child_amount : '||to_char(l_child_amount))
+l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) l_social : '||to_char(l_social))
+
+return l_basic, l_hra, l_tra, l_mon_oth_allow, l_tele_amount, l_child_amount, l_social, l_gross, l_pay_scale, l_uae_nationality, l_grade

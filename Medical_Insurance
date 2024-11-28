@@ -1,0 +1,302 @@
+/***************************************************************
+Formula Name : Medical Insurance
+Formula Type : Oracle Payroll
+Description  : Returns the medical insurance premium for employee and family
+Author : Amos Langat
+Changes : Made Changes by Abdulrahman on 22Jul2024 for changes in premium Buckets, accordingly made changes in UDT
+***************************************************************/
+
+ALIAS per_per_cont_rel_cont_attribute4      AS cont_medical_flag /* Medical Eligibility */
+
+DEFAULT FOR pay_earn_period_start     IS '1951/01/01 00:00:00' (DATE)
+DEFAULT FOR pay_earn_period_end       IS '4712/12/31 00:00:00' (DATE)
+DEFAULT FOR pay_asg_hire_date         IS '1951/01/01 00:00:00' (DATE)
+DEFAULT FOR pay_asg_termination_date  IS '4712/12/31 00:00:00' (DATE)
+DEFAULT FOR prorate_start             IS '1951/01/01 00:00:00' (DATE)
+DEFAULT FOR prorate_end               IS '4712/12/31 00:00:00' (DATE)
+DEFAULT FOR asg_hr_asg_id is 0
+DEFAULT FOR PER_PER_DATE_OF_BIRTH 	IS '1951/01/01 00:00:00' (DATE)
+DEFAULT FOR PER_PER_SEX is 'X'
+
+DEFAULT_DATA_VALUE FOR per_per_contact_person_id is 0
+DEFAULT_DATA_VALUE FOR per_per_contact_date_of_birth   is  '1951/01/01 00:00:00' (Date)
+DEFAULT_DATA_VALUE FOR PER_PER_CONT_REL_EFFECTIVE_END_DATE is  '4712/12/31 00:00:00' (Date)
+DEFAULT_DATA_VALUE FOR PER_PER_CONTACT_SEX is 'x'
+DEFAULT_DATA_VALUE for per_per_contact_contact_type is 'X'
+DEFAULT_DATA_VALUE FOR per_per_cont_rel_effective_start_date is '1951/01/01 00:00:00' (Date)
+DEFAULT_DATA_VALUE FOR PER_PER_CONT_REL_EFFECTIVE_END_DATE is  '4712/12/31 00:00:00' (Date)
+DEFAULT_DATA_VALUE FOR cont_medical_flag    IS 'N'
+
+inputs are Category(text)
+
+formula_name = 'Medical Insurance'
+
+l_eff_date	= LEAST( pay_earn_period_end, pay_asg_termination_date)
+l_type 		= 'X'
+l_dep_type	= 'X'
+l_con_type  = 'X'
+l_gender 	= PER_PER_SEX
+l_per_DOB 	= PER_PER_DATE_OF_BIRTH
+l_dep_age = 0
+l_per_age = 0
+l_total_dep_amt = 0
+
+
+if to_char(l_per_DOB, 'ddmm') = '2902' then
+(
+	l_per_DOB = add_days( l_per_DOB, -1)
+)
+l_per_age = Round((MONTHS_BETWEEN(add_days(l_eff_date,1), l_per_DOB ))/12,3)
+
+l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' start ' )
+l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' effective date : '||to_char( l_eff_date) )
+l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' person date of birth : '||to_char( l_per_DOB) )
+l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' person age : '||to_char( l_per_age) )
+
+
+/******************************* calculating employee value *************************************/
+
+IF Category = 'PREMIER_TC1' or Category = 'PREMIER_TC2' or  Category = 'ENH_GOLD_TC1' or Category = 'ENH_GOLD_TC2'  THEN
+(
+	if l_per_age >= 16 and l_per_age < 66 AND l_gender = 'M' THEN
+	(
+		l_type = 'MALE (16-65)'
+	)
+	ELSE IF l_per_age >= 16 and l_per_age < 66 AND l_gender = 'F' THEN
+	(
+		l_type = 'FEMALE (16-65)'
+	)
+	ELSE IF l_per_age >=66 and ( l_gender = 'M' OR l_gender = 'F') THEN
+	(
+		l_type = 'SENIOR (66-99)'
+	)
+	
+	l_emp_value = round(to_number(GET_TABLE_VALUE('ALDAR_MEDICAL_INSURANCE_TC' ,  Category, l_type ,'DEFAULT'))/12,3)
+	
+	l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' category : '||( Category) )
+	l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' type  : '||( l_type) )
+	l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' employee value : '||to_char( l_emp_value) )
+)
+ELSE /* Premier ( Expat )  and ENH Gold ( Expat ) Categories */
+(
+	/*if l_per_age >= 16 and l_per_age < 66 AND l_gender = 'M' THEN
+	(
+		l_type = 'MALE CHILD (16-65)'
+	)
+	ELSE IF l_per_age >= 16 and l_per_age < 51 AND l_gender = 'F' THEN
+	(
+		l_type = 'FEMALE WITH MATERNITY (16-50)'
+	)
+	ELSE IF l_per_age >= 51 and l_per_age < 66 AND l_gender = 'F' THEN
+	(
+		l_type = 'FEMALE WITH MATERNITY (51-65)'
+	)*/
+	IF  l_per_age >= 16 and l_per_age < 60 AND l_gender = 'M' THEN
+	(
+		l_type = 'MALE CHILD (16-59)'
+	)
+	ELSE IF l_per_age >= 60 and l_per_age < 66 AND l_gender = 'M' THEN
+	(
+		l_type = 'MALE CHILD (60-65)'
+	)
+	ELSE IF l_per_age >= 16 and l_per_age < 60 AND l_gender = 'F' THEN
+	(
+		l_type = 'FEMALE WITH MATERNITY (16-59)'
+	)
+	ELSE IF l_per_age >= 60 and l_per_age < 66 AND l_gender = 'F' THEN
+	(
+		l_type = 'FEMALE WITH MATERNITY (60-65)'
+	)
+	
+	
+	
+	
+	ELSE IF l_per_age >= 66 and ( l_gender = 'M' OR l_gender = 'F') THEN
+	(
+		l_type = 'SENIOR (66-99)'
+	)	
+	l_emp_value = round(to_number(GET_TABLE_VALUE('ALDAR_MEDICAL_INSURANCE_EXPAT' ,  Category, l_type ,'DEFAULT'))/12,3)
+	
+	l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' category : '||( Category) )
+	l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' type  : '||( l_type) )
+	l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' employee value : '||to_char( l_emp_value) )
+	
+)
+/***********************************end of calculating employee value ***********************************************/
+
+
+/********************************** start calculation medical insurance value for dependents **************************************/
+l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||'      Dependent Calculation starts    ' )
+k = 1
+while (per_per_contact_person_id.EXISTS(K)) LOOP
+(	
+
+	l_DOB_child 	= per_per_contact_date_of_birth[k]
+	l_dep_gender	= PER_PER_CONTACT_SEX[k]
+	l_con_type		=  per_per_contact_contact_type[K]
+	l_c_end_date	= PER_PER_CONT_REL_EFFECTIVE_END_DATE[k]
+	l_c_start_date  = per_per_cont_rel_effective_start_date[k]
+	l_c_flag	    = cont_medical_flag [k]
+	
+	if l_eff_date <= l_c_end_date and l_eff_date >= l_c_start_date THEN
+	(
+	
+		
+		if to_char(l_dob_child, 'ddmm') = '2902' then
+		(
+			l_DOB_child = add_days( l_dob_child, -1)
+		)
+		l_dep_age	=  Round((MONTHS_BETWEEN(add_days( l_eff_date,1), l_DOB_child ))/12,3)
+		
+		
+		IF Category = 'PREMIER_TC1' or Category = 'PREMIER_TC2' or  Category = 'ENH_GOLD_TC1' or Category = 'ENH_GOLD_TC2' THEN
+		(
+			   if l_dep_age > 18 and (l_con_type <> 'C'and l_con_type <> 'IN_D' and l_con_type <> 'IN_S') then
+		       (
+					IF l_dep_age < 16  AND l_c_flag = 'Y' THEN
+					(
+						l_dep_type = 'CHILDREN (0-15)'
+					)
+					ELSE if l_dep_age >= 16 and l_dep_age < 66 AND l_dep_gender = 'M'  AND l_c_flag = 'Y' THEN
+					(
+						l_dep_type = 'MALE (16-65)'
+					)
+					ELSE IF l_dep_age >= 16 and l_dep_age < 66 AND l_dep_gender = 'F' AND l_c_flag = 'Y' THEN
+					(
+						l_dep_type = 'FEMALE (16-65)'
+					)
+					ELSE IF l_dep_age >=66 and ( l_dep_gender = 'M' OR l_dep_gender = 'F')  AND l_c_flag = 'Y' THEN
+					(
+						l_dep_type = 'SENIOR (66-99)'
+					)
+		        )	
+			/*** For children less than 18 years only are eligible -- starts ***/
+			if l_dep_age <= 18 and (l_con_type = 'C'or l_con_type= 'IN_D' or l_con_type = 'IN_S') then
+			(
+				IF l_dep_age < 16  AND l_c_flag = 'Y' THEN
+				(
+					l_dep_type = 'CHILDREN (0-15)'
+				)
+				ELSE if l_dep_age >= 16 and l_dep_age < 66 AND l_dep_gender = 'M'  AND l_c_flag = 'Y' THEN
+				(
+					l_dep_type = 'MALE (16-65)'
+				)
+				ELSE IF l_dep_age >= 16 and l_dep_age < 66 AND l_dep_gender = 'F'  AND l_c_flag = 'Y' THEN
+				(
+					l_dep_type = 'FEMALE (16-65)'
+				)
+				
+			)
+			/*** For children less than 18 years only are eligible -- ends ***/
+			l_dep_value = round(to_number(GET_TABLE_VALUE('ALDAR_MEDICAL_INSURANCE_TC' ,  Category, l_dep_type ,'DEFAULT'))/12,3)
+			
+			l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' dependent category : '||( Category) )
+			l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' dependent AGE : '||TO_CHAR( l_dep_age) )
+			l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' dependent category : '||( l_c_flag) )
+			l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' dependent type  : '||( l_dep_type) )
+			l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' dependent DOB  : '||TO_CHAR( l_DOB_child) )
+			l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' dependent value :--- '||to_char( l_dep_value)||'---' )
+		)
+		ELSE   /* Premier ( Expat )  and ENH Gold ( Expat ) Categories */
+		(
+		
+		  if l_dep_age > 18 and (l_con_type <> 'C' and l_con_type <> 'IN_D' and l_con_type <> 'IN_S')then
+		    (
+			   l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' Dependent adult loop starts    ' )
+
+				IF l_dep_age < 16  AND l_c_flag = 'Y' THEN
+				(
+					l_dep_type = 'CHILDREN (0-15)'
+				)
+				/*
+				ELSE if l_dep_age >= 16 and l_dep_age < 66 AND l_dep_gender = 'M'  AND l_c_flag = 'Y' THEN
+				(
+					l_dep_type = 'MALE CHILD (16-65)'
+				)
+				ELSE IF l_dep_age > 16 and l_dep_age < 21 and l_dep_gender = 'F'  AND l_c_flag = 'Y' THEN
+				(
+						l_dep_type = 'FEMALE CHILD (16-20)'
+				)
+				ELSE IF l_dep_age >= 16 and l_dep_age < 51 AND l_dep_gender = 'F' and  l_c_flag = 'Y' THEN
+				(
+					l_dep_type = 'FEMALE WITH MATERNITY (16-50)'
+				)
+				ELSE IF l_dep_age >= 51 and l_dep_age < 66 AND l_dep_gender = 'F'  and  l_c_flag = 'Y' THEN
+				(
+					l_dep_type = 'FEMALE WITH MATERNITY (51-65)'
+				)
+				*/
+				ELSE if l_dep_age >= 16 and l_dep_age < 60 AND l_dep_gender = 'M'  AND l_c_flag = 'Y' THEN
+				(
+					l_dep_type = 'MALE CHILD (16-59)'
+				)
+				ELSE if l_dep_age >= 60 and l_dep_age < 66 AND l_dep_gender = 'M'  AND l_c_flag = 'Y' THEN
+				(
+					l_dep_type = 'MALE CHILD (60-65)'
+				)
+				ELSE IF l_dep_age > 16 and l_dep_age < 21 and l_dep_gender = 'F'  AND l_c_flag = 'Y' THEN
+				(
+						l_dep_type = 'FEMALE CHILD (16-59)'
+				)
+				ELSE IF l_dep_age >= 16 and l_dep_age < 60 AND l_dep_gender = 'F' and  l_c_flag = 'Y' THEN
+				(
+					l_dep_type = 'FEMALE WITH MATERNITY (16-59)'
+				)
+				ELSE IF l_dep_age >= 60 and l_dep_age < 66 AND l_dep_gender = 'F'  and  l_c_flag = 'Y' THEN
+				(
+					l_dep_type = 'FEMALE WITH MATERNITY (60-65)'
+				)				
+				
+				
+				
+				ELSE IF l_dep_age >= 66 and ( l_dep_gender = 'M' OR l_dep_gender = 'F')  AND l_c_flag = 'Y' THEN
+				(
+					l_dep_type = 'SENIOR (66-99)'
+				)	
+			)
+			/*** For children less than 18 years only are eligible -- starts ***/
+			if l_dep_age =< 18 and (l_con_type = 'C' or l_con_type= 'IN_D' or l_con_type = 'IN_S') then
+			(
+			   l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||'  Dependent child loop starts    ' )
+
+				IF l_dep_age < 16  AND l_c_flag = 'Y' THEN
+				(
+					l_dep_type = 'CHILDREN (0-15)'
+				)
+				ELSE if l_dep_age >= 16 and l_dep_age < 60 AND l_dep_gender = 'M'  AND l_c_flag = 'Y' THEN
+				(
+					l_dep_type = 'MALE CHILD (16-59)'
+				)
+				ELSE IF l_dep_age > 16 and l_dep_age < 21 and l_dep_gender = 'F'  AND l_c_flag = 'Y' THEN
+				(
+						l_dep_type = 'FEMALE CHILD (16-59)'
+				)
+				
+				
+            )	
+			
+            /*** For children less than 18 years only are eligible -- ends ***/			
+			l_dep_value = round(to_number(GET_TABLE_VALUE('ALDAR_MEDICAL_INSURANCE_EXPAT' ,  Category, l_dep_type ,'DEFAULT'))/12,3)
+			
+			l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' dependent category : '||( Category) )
+			l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' dependent AGE : '||TO_CHAR( l_dep_age) )
+			l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' dependent type  : '||( l_dep_type) )
+			l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' contact type  : '||( l_con_type) )
+			l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' dependent DOB  : '||TO_CHAR( l_DOB_child) )
+			l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' dependent value : ---'||to_char( l_dep_value)||'---' )
+			
+		)
+		 
+		l_total_dep_amt = l_total_dep_amt + l_dep_value
+		l_dep_type = 'X'
+	)
+	
+		k = k +1
+	l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' l_total_dep_amt : ---'||to_char( l_total_dep_amt)||'---' )
+)
+/*********************************End of calculating dependent value **********************************/
+
+l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' Employee amount : '||to_char( l_emp_value) )
+l_log = PAY_INTERNAL_LOG_WRITE(  formula_name||' total dependent amount : '||to_char( l_total_dep_amt) )
+
+RETURN l_emp_value, l_total_dep_amt

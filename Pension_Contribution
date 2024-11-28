@@ -1,0 +1,1049 @@
+/***************************************************************
+Formula Name : 
+Formula Type : Oracle Payroll
+Description  : Other Recurring Deduction Calculation for Regular Month, Termination Month etc.
+Author       : Amos Langat
+Date         : 20-Dec-2022        
+***************************************************************/
+
+ALIAS per_per_contact_person_id             AS cont_person_id
+ALIAS per_per_contact_contact_type          AS cont_type
+ALIAS per_per_contact_date_of_birth         AS cont_dob_date
+ALIAS per_per_cont_rel_effective_start_date AS cont_start_date
+ALIAS per_per_cont_rel_cont_attribute3      AS cont_Airfare_flag /* Airfare Eligibility */ 
+ALIAS per_per_cont_rel_effective_end_date   AS cont_end_date
+ALIAS per_per_contact_display_name          AS cont_name
+ALIAS per_per_contact_person_number         AS cont_num
+
+default for per_per_citizenship_leg_name is 'xx'
+default for pay_earn_period_end          is '4712/12/31 00:00:00' (date)
+default for pay_earn_period_start        is '0001/01/01 00:00:00' (date)
+default for pay_earn_period_end          is '4712/12/31 00:00:00' (date)
+default for PAY_ASG_HIRE_DATE            is '0001/01/01 00:00:00' (date)
+default for pay_asg_termination_date     is '4712/12/31 00:00:00' (date)        
+default for ALDAR_TOTAL_UNPAID_DAYS_ASG_RUN         is 0
+default for BASIC_SALARY_AMOUNT_ASG_ENTRY_VALUE     is 0
+default for AIRFARE_ALLOWANCE_CLASS_ASG_ENTRY_VALUE is 'z'
+default for ALDAR_GROSS_SALARY_ASG_ITD              is 0
+default for ALDAR_BASIC_SALARY_ASG_ITD              is 0
+default for ALDAR_HOUSING_ALLOWANCE_ASG_ITD         is 0
+default for ALDAR_SOCIAL_ALLOWANCE_ASG_ITD          is 0
+default for ALDAR_AIRFARE_ALLOWANCE_ASG_ITD         is 0
+default for SPECIAL_BUSINESS_ALLOWANCE_ASG_ITD      is 0
+default for ALDAR_SPECIAL_BUSINESS_ALLOWANCE_ASG_ITD      is 0
+default for SPECIAL_BUSINESS_ALLOWANCE_AMOUNT_ASG_ENTRY_VALUE     is 0
+
+
+default_data_value for SPECIAL_BUSINESS_ALLOWANCE_AMOUNT_ENTRY_VALUE  is 0
+
+
+
+DEFAULT_DATA_VALUE FOR cont_person_id     IS 0
+DEFAULT_DATA_VALUE FOR cont_type          IS 'XXX'
+DEFAULT_DATA_VALUE FOR cont_start_date    IS '1951/01/01 00:00:00' (Date)
+DEFAULT_DATA_VALUE FOR cont_dob_date      IS '1951/01/01 00:00:00' (Date)
+DEFAULT_DATA_VALUE FOR cont_Airfare_flag  IS 'X'
+DEFAULT_DATA_VALUE FOR cont_end_date      IS '4712/12/31 00:00:00' (Date)
+DEFAULT_DATA_VALUE FOR cont_name          IS 'XXX'
+DEFAULT_DATA_VALUE FOR cont_num           IS 'X'
+
+l_nationality 	= per_per_citizenship_leg_name /* Nationality of Employee              */
+l_emp_contr  	= 0                            /* Employee Contribution Local variable */
+l_empr_contr 	= 0                            /* Employer Contribution Local variable */
+l_emp_perctg 	= 0          /* Employee percentage Local variable   */
+l_empr_perctg 	= 0                            /* Employer percentage Local variable   */
+l_rate			= 0	 
+l_adpension     = 'Old'
+unpaid_days  	= ALDAR_TOTAL_UNPAID_DAYS_ASG_RUN                                                         
+
+formula_name		 = '[ALDAR Pension Contribution]'	
+
+
+l_eff_date      = greatest(last_day(pay_asg_hire_date), last_day(trunc(pay_earn_period_end,'YYYY')))
+l_start         = GREATEST(pay_earn_period_start, PAY_ASG_HIRE_DATE)
+l_end           = LEAST(pay_asg_termination_date, pay_earn_period_end)
+l_working_days  = days_between(l_end, l_start) + 1
+l_calendar_days = days_between(pay_earn_period_end, pay_earn_period_start) + 1
+l_emp           = 0
+l_person_id     = get_context(PERSON_ID, 0)
+l_assignment_id = asg_hr_asg_id
+p_date          = to_char(l_eff_date,'yyyy-MM-dd')
+l_air_fare      = 0
+l_gross_adj     = 0
+l_basic_adj     = 0
+l_hra_adj       = 0
+l_social_adj    = 0
+l_airfare_adj   = 0
+l_child1        = 'XX'
+l_child2        = 'YY'
+l_child3        = 'ZZ'
+l_bal           = ALDAR_GROSS_SALARY_ASG_ITD
+l_SPL_BUS_adj  	= 0
+l_SPL_BUS  		= 0
+
+l_log = pay_internal_log_write('SPECIAL BUSINESS ALLOWANCE Entry Value 1 '||to_char(l_SPL_BUS))
+
+/**Getting AD Pension value **/				
+CALL_FORMULA('ALDAR Get HR Data',l_assignment_id          > 'hr_id',l_end      > 'eff_date','AD Pension'  > 'mode',l_adpension   < 'l_text'  DEFAULT 'Old')
+l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) l_adpension : '||l_adpension)
+
+
+if (last_day(pay_asg_hire_date) = pay_earn_period_end ) or (last_day(trunc(pay_earn_period_end,'YYYY')) = pay_earn_period_end) or (l_bal = 0)  THEN
+(
+
+if l_bal = 0 THEN
+(	
+    l_eff_date = pay_earn_period_end
+	p_date          = to_char(l_eff_date,'yyyy-MM-dd')
+)
+
+call_formula('Aldar Get Gross Salary'
+								, l_eff_date > 'p_eff_date'
+								, l_gross    < 'l_gross'  default 0
+								, l_basic    < 'l_basic'  default 0
+								, l_hra      < 'l_hra'  default 0
+								, l_social   < 'l_social' default 0)
+								
+l_log = pay_internal_log_write(formula_name||'l_eff_date :'|| TO_CHAR(l_eff_date))								
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Gross Salary: '||TO_CHAR(l_gross))
+l_log = pay_internal_log_write(formula_name||'l_nationality :'|| l_nationality)
+/* ==================== Special Business Allowance START ================= */
+
+k = 1
+change_contexts (date_earned = l_eff_date) 
+( 
+	while (SPECIAL_BUSINESS_ALLOWANCE_AMOUNT_ENTRY_VALUE.exists (k)) loop
+	(
+		 if SPECIAL_BUSINESS_ALLOWANCE_AMOUNT_ENTRY_VALUE[k] > 0 then
+		 (
+			  l_SPL_BUS = SPECIAL_BUSINESS_ALLOWANCE_AMOUNT_ENTRY_VALUE[k]
+	                  l_log = pay_internal_log_write('SPECIAL BUSINESS ALLOWANCE Entry Value '||to_char(l_SPL_BUS))
+				  exit
+		 )
+		 k = k + 1
+	)
+ )
+l_log = pay_internal_log_write('SPECIAL BUSINESS ALLOWANCE Entry Value '||to_char(l_SPL_BUS))
+/* ==================== Special Business Allowance END ================= */
+
+/* ==================== Airfare Allowance ================= */
+l_Airfare_entry_id = get_value_set('ALDAR_GET_ELEMENT_ENTRY','|=p_person_id='''||to_char(l_person_id)||''''||'|p_eff_date='''||p_date||''''||'|p_element='''||'Airfare Allowance'||'''')
+l_log = pay_internal_log_write(formula_name||'l_Airfare_entry_id : '|| l_Airfare_entry_id)
+
+/**Getting if Employee is UAE National or not**/
+CALL_FORMULA('ALDAR GET HR DATA',l_assignment_id          > 'hr_id',l_eff_date     > 'eff_date','UAE National'  > 'mode',l_uae_nationality   < 'l_text'  DEFAULT 'X')	
+l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) l_uae_nationality : '||l_uae_nationality)
+
+/**Getting grade of the Employee **/				
+CALL_FORMULA('ALDAR Get HR Data',l_assignment_id          > 'hr_id',l_eff_date     > 'eff_date','Grade'  > 'mode',l_grade   < 'l_text'  DEFAULT 'X')
+l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) l_grade : '||l_grade)
+
+/**Getting Destination of the Employee **/
+CALL_FORMULA('ALDAR GET HR DATA',l_assignment_id          > 'hr_id',l_eff_date     > 'eff_date','Air Ticket Destination'  > 'mode',l_destination< 'l_text'  DEFAULT 'X')
+l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) l_destination : '||l_destination)
+
+/**Getting Business Unit of the Employee **/
+CALL_FORMULA('ALDAR GET HR DATA',
+                 l_assignment_id               > 'hr_id',
+                  l_eff_date           > 'eff_date',
+                 'Business Unit' 		 > 'mode',
+                 l_Business_unit             < 'l_text'  DEFAULT 'X'
+            )
+l_log = pay_internal_log_write('(get_gross_salary) Business_unit : '||l_Business_unit)	
+
+/**Getting AD Pension value **/				
+CALL_FORMULA('ALDAR Get HR Data',l_assignment_id          > 'hr_id',l_eff_date     > 'eff_date','AD Pension'  > 'mode',l_adpension   < 'l_text'  DEFAULT 'Old')
+l_log = PAY_INTERNAL_LOG_WRITE('(get_gross_salary) l_adpension : '||l_adpension)
+
+
+/*Aldar Airfare */
+/*CAL_MODE(BU)*/
+l_CAL_MODE = GET_TABLE_VALUE('ALDAR_BUSINESS_UNIT_ELIGIBILITY','Eligibility',l_Business_unit,'0')
+l_log = ESS_LOG_WRITE('Pension CAL_MODE   :'||l_CAL_MODE)
+
+if(l_CAL_MODE = 'ALDAR')then(
+
+if to_number(l_Airfare_entry_id) > 0 then
+( 
+    l_c             = AIRFARE_ALLOWANCE_CLASS_ASG_ENTRY_VALUE
+    l_val           = 0
+    l_value         = 0
+    l_period_start  = GREATEST(trunc(pay_asg_hire_date,'MM'),trunc(pay_earn_period_end,'YYYY'))
+    l_period_end    = GREATEST(last_day(pay_asg_hire_date),last_day(trunc(pay_earn_period_end,'YYYY')))
+    l_p             = 'Adult'
+    l_children      = 0	
+    l_y             = 0	
+	l_name          = 'X'
+	l_log = pay_internal_log_write(formula_name||'Employee Destination is : '||l_destination)
+	l_log = pay_internal_log_write(formula_name||'Employee Grade is : '||l_grade)
+	l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'UAE Nationality : '||l_uae_nationality)
+
+	l_class = GET_TABLE_VALUE('ALDAR_AIRFARE_ALLOWANCE_CLASS','Class',l_grade,'0')
+/*-------------------employee air class  ---------------------*/
+
+if AIRFARE_ALLOWANCE_CLASS_ASG_ENTRY_VALUE was not defaulted then
+(
+  l_class = l_c
+)
+Class_Type = l_class||'_Adult'
+l_log = pay_internal_log_write(formula_name||'Class_Type : '||l_class)
+
+/*------------------- expat employee ---------------------*/
+if (l_uae_nationality = 'N') then
+(
+  l_value = round(to_number(GET_TABLE_VALUE('Aldar_AirFare',Class_Type,l_destination,'0'))/12,3)
+)
+/*------------------- UAE employee---------------------*/
+else
+(
+  l_sal = BASIC_SALARY_AMOUNT_ASG_ENTRY_VALUE/12
+  l_value = round(l_sal * 2/12,3)
+)
+l_log = pay_internal_log_write(formula_name||'Employee Airfare Value : '||to_char(l_value))
+
+/*l_family_eligible = GET_TABLE_VALUE('AirFare_Grade_Eligibility','Grade',l_grade,'0')*/
+l_family_eligible = GET_TABLE_VALUE('ALDAR_AIRFARE_ALLOWANCE_ELIGIBILITY','Eligibility',l_Grade,'0')  /*Family/Self*/
+l_log = pay_internal_log_write(formula_name||'Family Eligible : '||l_family_eligible)
+
+/*-------------------Contacts of expat employee ---------------------*/
+if (l_uae_nationality = 'N') then 
+(
+if (l_family_eligible = 'Family')  then
+(
+J = 0
+while l_children < 3 and J < 3 loop
+(
+  l_log = pay_internal_log_write('Children Considered till now : '||to_char(l_children))
+  l_log = pay_internal_log_write('************************ALDAR AIRFARE LOOP '||to_char(J+1)||'**************************')
+
+  K = 1
+  while PER_PER_CONTACT_PERSON_ID.EXISTS(K)  LOOP
+  (
+
+   l_eligible = PER_PER_CONT_REL_CONT_ATTRIBUTE3[K]
+   l_dob      = PER_PER_CONTACT_DATE_OF_BIRTH[K]
+   l_ef_date  = PER_PER_CONT_REL_EFFECTIVE_START_DATE[K]
+   l_en_date  = PER_PER_CONT_REL_EFFECTIVE_END_DATE[k]
+   l_c_type   = PER_PER_CONTACT_CONTACT_TYPE[k]
+   l_name     = PER_PER_CONTACT_DISPLAY_NAME[k]
+   l_c_num    = PER_PER_CONTACT_PERSON_NUMBER[k]
+
+   l_rec_start  = GREATEST(l_period_start,l_ef_date)
+    l_rec_end    = least(l_period_end,l_en_date)
+
+   IF TO_CHAR(l_dob,'ddmm') = '2902' and to_number(TO_CHAR(l_dob,'YYYY')) < to_number(TO_CHAR(l_period_start,'YYYY')) and TO_CHAR(l_period_end,'ddmm') <> '2902'  then
+   (
+    l_dob = add_days(l_dob,-1)
+   )
+   l_age = round(months_between(add_days(l_period_end,1),l_dob)/12,4)
+
+   if l_age <= 18 and l_age > 12 then
+   (
+      type = 'Adult'
+    )
+    else if l_age > 2 and l_age <= 12 then
+      (
+       type = 'Child'
+      )
+    else if l_age <= 2 and l_age > 0 then
+
+    (
+     type = 'Infant' 
+    )
+    else
+    (
+      type = 'Other'
+    )
+
+
+/*------------------------------------ Multiple updates with Eligibility 'Y' -----------------------------*/
+IF (l_eligible = 'Y' AND l_ef_date <= l_period_end  AND l_en_date >= l_period_end  AND ( l_c_type = 'C'  or l_c_type = 'IN_D' or l_c_type = 'IN_S' or l_c_type = 'S' )) then
+ (
+   p = 1
+   r_count = 1
+   e_count = 1
+   l_er_val = 0
+
+  while PER_PER_CONTACT_PERSON_ID.EXISTS(p)  LOOP
+  (
+    l_p_num = PER_PER_CONTACT_PERSON_NUMBER [p]
+    l_p_dob = PER_PER_CONTACT_DATE_OF_BIRTH[p] 
+	if to_number(l_c_num) = to_number(l_p_num) then 
+	(
+       if PER_PER_CONT_REL_EFFECTIVE_END_DATE[p] >= l_period_start And  PER_PER_CONT_REL_EFFECTIVE_END_DATE[p] < l_period_end  then
+        (
+          r_count = r_count + 1
+
+           if  PER_PER_CONT_REL_CONT_ATTRIBUTE3[p] = 'Y' then
+            (
+	          l_r_val = 0
+              e_count = e_count + 1
+
+		       if to_char(l_period_start,'MON') = 'FEB' then
+                (
+                    l_cal_days = days_between(l_period_end,l_period_start)+1
+                )
+               else
+                (
+                    l_cal_days = 30
+                )
+				if type = 'Adult' then 
+				(
+				 l_y = 12
+				)
+				else if type = 'Child' then
+				(
+				 l_y = 2
+				)
+				if (type = 'Adult' or type = 'Child') 
+				    And ( PER_PER_CONT_REL_EFFECTIVE_START_DATE[p] <= ADD_MONTHS( l_p_dob,l_y*12))
+					AND (ADD_MONTHS( l_p_dob,l_y*12) <= PER_PER_CONT_REL_EFFECTIVE_END_DATE[p]) THEN
+			    (
+				 if l_y = 2 THEN
+				 (
+				  type_one = '_Infant'
+				  type_two = '_Child'
+				 )
+				 else if l_y = 12 THEN
+				 (
+				  type_one = '_Child'
+				  type_two = '_Adult'
+				 )
+			     l_end = ADD_MONTHS( l_p_dob,l_y*12)
+			     l_work_days1 = days_between(l_end,PER_PER_CONT_REL_EFFECTIVE_START_DATE[p])
+                 class = l_class||type_one
+                 l_df1 = to_number(GET_TABLE_VALUE('Aldar_AirFare',class,l_destination,'0'))
+                 l_r_val1 = round(((l_df1/12)/l_cal_days)*l_work_days1,3)
+
+                 l_work_days2 = days_between(PER_PER_CONT_REL_EFFECTIVE_END_DATE[p],l_end)+1
+                 class = l_class||type_two
+                 l_df2 = to_number(GET_TABLE_VALUE('Aldar_AirFare',class,l_destination,'0'))
+                 l_r_val2 = round(((l_df2/12)/l_cal_days)*l_work_days2,3)
+
+				  l_er_val = l_er_val + l_r_val1 + l_r_val2
+			     )
+			   ELSE  
+			    (
+		          l_work_days = days_between(PER_PER_CONT_REL_EFFECTIVE_END_DATE[p],GREATEST(PER_PER_CONT_REL_EFFECTIVE_START_DATE[p],l_period_start))+1		
+		          class = l_class||'_'||TYPE
+				  if type = 'Other' THEN
+				  (
+				  class = l_class||'_Adult'
+				  )
+                  l_df = to_number(GET_TABLE_VALUE('Aldar_AirFare',class,l_destination,'0'))
+                  l_r_val = round(((l_df/12)/l_cal_days)*l_work_days,3)
+
+		          l_er_val = l_er_val + l_r_val
+				)
+
+            )
+	    )
+    )
+     p = p + 1
+   )
+ )
+
+  IF (l_eligible = 'Y' AND l_ef_date <= l_period_end  AND l_en_date >= l_period_end AND ( l_c_type = 'C'  or l_c_type = 'IN_D' or l_c_type = 'IN_S' or l_c_type = 'S' )) then
+  (
+
+  /*-------------------Children AirFare-----------------------*/
+     IF  TYPE = l_p then  
+      (
+        IF TYPE = 'Adult'  and l_children < 3 then
+         (
+		   l_log = pay_internal_log_write('------------------------------------------------')
+		   l_log = pay_internal_log_write(formula_name||'Dependent Name '||l_name)
+		   l_log = pay_internal_log_write(formula_name||'Dependent Age '||to_char(l_age))
+           l_log = pay_internal_log_write(formula_name||'Dependent type '||type)
+           l_log = pay_internal_log_write(formula_name||'Dependent Eligible '||l_eligible)
+           l_log = pay_internal_log_write(formula_name||'Dependent DOB '||TO_CHAR(l_dob,'dd-mm-yyyy'))
+           l_log = pay_internal_log_write(formula_name||'Dependent Effective Start Date '||TO_CHAR(l_ef_date,'dd-mm-yyyy'))
+		   l_log = pay_internal_log_write(formula_name||'Dependent Effective End Date '||TO_CHAR(l_en_date,'dd-mm-yyyy'))
+		   l_log = pay_internal_log_write(formula_name||'Period Start '||TO_CHAR(l_period_start,'dd-mm-yyyy'))
+		   l_log = pay_internal_log_write(formula_name||'Period End '||TO_CHAR(l_period_end,'dd-mm-yyyy'))
+		   l_log = pay_internal_log_write(formula_name||'Records Count in this month '||to_char(r_count))
+		   l_log = pay_internal_log_write(formula_name||'Eligible Records Count in this month '||to_char(e_count))
+		   l_log = pay_internal_log_write(formula_name||'End Dated Eligibile records Value '||to_char(l_er_val))
+           IF (l_period_start <> l_rec_start) OR (l_period_end <> l_rec_end) OR (( l_rec_start <= ADD_MONTHS( l_dob,12*12)) AND (ADD_MONTHS( l_dob,12*12) <= l_rec_end)) then
+           (
+            if to_char(l_period_start,'MON') = 'FEB' then
+             (
+              l_cal_days =  days_between(PAY_EARN_PERIOD_END,PAY_EARN_PERIOD_START)+1
+              )
+             else
+             (
+              l_cal_days = 30
+             )
+
+			 if (( l_rec_start <= ADD_MONTHS( l_dob,12*12)) AND (ADD_MONTHS( l_dob,12*12) <= l_rec_end)) THEN
+			  (
+			   l_end = ADD_MONTHS( l_dob,12*12)
+			   l_work_days1 = days_between(l_end,l_rec_start)
+              class = l_class||'_Child'
+              l_df1 = to_number(GET_TABLE_VALUE('Aldar_AirFare',class,l_destination,'0'))
+              l_val1 = round(((l_df1/12)/l_cal_days)*l_work_days1,3)
+              l_log = pay_internal_log_write(formula_name||'l_val1 : '||to_char(l_val1))
+
+              l_work_days2 = days_between(l_rec_end,l_end)+1
+              class = l_class||'_Adult'
+              l_df2 = to_number(GET_TABLE_VALUE('Aldar_AirFare',class,l_destination,'0'))
+              l_val2 = round(((l_df2/12)/l_cal_days)*l_work_days2,3)
+              l_log = pay_internal_log_write(formula_name||'l_val2 : '||to_char(l_val2))
+
+              l_val = l_val1 + l_val2 + l_er_val
+			  )
+			   ELSE  
+			   (
+			    if r_count = e_count and r_count > 1 and  e_count > 1 then 
+				(
+				 l_work_days = l_cal_days
+				)
+				ELSE
+				(
+				l_work_days = days_between(l_rec_end,l_rec_start)+1
+				)
+				 l_log = pay_internal_log_write(formula_name||'l_cal_days '||to_char(l_cal_days))
+                 l_log = pay_internal_log_write(formula_name||'l_work_days '||to_char(l_work_days))
+                class = l_class||'_Adult'
+                l_df = to_number(GET_TABLE_VALUE('Aldar_AirFare',class,l_destination,'0'))
+                l_val = round(((l_df/12)/l_cal_days)*l_work_days,3) + l_er_val
+                l_log = pay_internal_log_write(formula_name||'l_val : '||to_char(l_val))
+			   )
+            )
+           else
+            (
+              class = l_class||'_'||type
+              l_val = round(to_number(GET_TABLE_VALUE('Aldar_AirFare',class,l_destination,'0'))/12,3)
+              l_log = pay_internal_log_write(formula_name||'l_val : '||to_char(l_val))
+            )
+            l_children = l_children + 1
+           )
+
+
+          if type = 'Child' and l_children < 3  then
+           (
+		    l_log = pay_internal_log_write('------------------------------------------------')
+		    l_log = pay_internal_log_write(formula_name||'Dependent Name '||l_name)
+		    l_log = pay_internal_log_write(formula_name||'Dependent Age '||to_char(l_age))
+            l_log = pay_internal_log_write(formula_name||'Dependent type '||type)
+            l_log = pay_internal_log_write(formula_name||'Dependent Eligible '||l_eligible)
+            l_log = pay_internal_log_write(formula_name||'Dependent DOB '||TO_CHAR(l_dob,'dd-mm-yyyy'))
+            l_log = pay_internal_log_write(formula_name||'Dependent Effective Start Date '||TO_CHAR(l_ef_date,'dd-mm-yyyy'))
+			l_log = pay_internal_log_write(formula_name||'Dependent Effective End Date '||TO_CHAR(l_en_date,'dd-mm-yyyy'))
+			l_log = pay_internal_log_write(formula_name||'Period Start '||TO_CHAR(l_period_start,'dd-mm-yyyy'))
+		    l_log = pay_internal_log_write(formula_name||'Period End '||TO_CHAR(l_period_end,'dd-mm-yyyy'))
+		    l_log = pay_internal_log_write(formula_name||'Records Count '||to_char(r_count))
+		    l_log = pay_internal_log_write(formula_name||'Eligible Records Count '||to_char(e_count))
+			l_log = pay_internal_log_write(formula_name||'Previous Eligibile records Value '||to_char(l_er_val))
+            IF (l_period_start <> l_rec_start) OR (l_period_end <> l_rec_end) OR (( l_rec_start <= ADD_MONTHS( l_dob,2*12)) AND (ADD_MONTHS( l_dob,2*12) <= l_rec_end)) then
+           (
+            if to_char(l_period_start,'MON') = 'FEB' then
+             (
+              l_cal_days =  days_between(PAY_EARN_PERIOD_END,PAY_EARN_PERIOD_START)+1
+              )
+             else
+             (
+              l_cal_days = 30
+             )
+
+			 if (( l_rec_start <= ADD_MONTHS( l_dob,2*12)) AND (ADD_MONTHS( l_dob,2*12) <= l_rec_end)) THEN
+			  (
+			   l_end = ADD_MONTHS( l_dob,2*12)
+			   l_work_days1 = days_between(l_end,l_rec_start)
+              class = l_class||'_Infant'
+              l_df1 = to_number(GET_TABLE_VALUE('Aldar_AirFare',class,l_destination,'0'))
+              l_val1 = round(((l_df1/12)/l_cal_days)*l_work_days1,3)
+              l_log = pay_internal_log_write(formula_name||'l_val1 : '||to_char(l_val1))
+
+              l_work_days2 = days_between(l_rec_end,l_end)+1
+              class = l_class||'_Child'
+              l_df2 = to_number(GET_TABLE_VALUE('Aldar_AirFare',class,l_destination,'0'))
+              l_val2 = round(((l_df2/12)/l_cal_days)*l_work_days2,3)
+              l_log = pay_internal_log_write(formula_name||'l_val2 : '||to_char(l_val2))
+
+              l_val = l_val1 + l_val2 + l_er_val
+			  )
+			   ELSE  
+			   (
+			    if r_count = e_count and r_count > 1 and  e_count > 1 then 
+				(
+				 l_work_days = l_cal_days
+				)
+				ELSE
+				(
+				l_work_days = days_between(l_rec_end,l_rec_start)+1
+				)
+				 l_log = pay_internal_log_write(formula_name||'l_cal_days '||to_char(l_cal_days))
+                 l_log = pay_internal_log_write(formula_name||'l_work_days '||to_char(l_work_days))
+                class = l_class||'_Child'
+                l_df = to_number(GET_TABLE_VALUE('Aldar_AirFare',class,l_destination,'0'))
+                l_val = round(((l_df/12)/l_cal_days)*l_work_days,3) + l_er_val
+                l_log = pay_internal_log_write(formula_name||'l_val : '||to_char(l_val))
+			   )
+            )
+           else
+           (
+             class = l_class||'_'||type
+             l_val = round(to_number(GET_TABLE_VALUE('Aldar_AirFare',class,l_destination,'0'))/12,3)
+             l_log = pay_internal_log_write(formula_name||'l_val : '||to_char(l_val))
+            )
+           l_children = l_children + 1
+           )
+
+          if TYPE = 'Infant' and l_children < 3 then
+          (
+		    l_log = pay_internal_log_write('------------------------------------------------')
+		    l_log = pay_internal_log_write(formula_name||'Dependent Name '||l_name)
+		    l_log = pay_internal_log_write(formula_name||'Dependent Age '||to_char(l_age))
+            l_log = pay_internal_log_write(formula_name||'Dependent type '||type)
+            l_log = pay_internal_log_write(formula_name||'Dependent Eligible '||l_eligible)
+            l_log = pay_internal_log_write(formula_name||'Dependent DOB '||TO_CHAR(l_dob,'dd-mm-yyyy'))
+            l_log = pay_internal_log_write(formula_name||'Dependent Effective Start Date '||TO_CHAR(l_ef_date,'dd-mm-yyyy'))
+			l_log = pay_internal_log_write(formula_name||'Dependent Effective End Date '||TO_CHAR(l_en_date,'dd-mm-yyyy'))
+			l_log = pay_internal_log_write(formula_name||'Period Start '||TO_CHAR(l_period_start,'dd-mm-yyyy'))
+		    l_log = pay_internal_log_write(formula_name||'Period End '||TO_CHAR(l_period_end,'dd-mm-yyyy'))
+		    l_log = pay_internal_log_write(formula_name||'Records Count '||to_char(r_count))
+		    l_log = pay_internal_log_write(formula_name||'Eligible Records Count '||to_char(e_count))
+			l_log = pay_internal_log_write(formula_name||'Previous Eligibile records Value '||to_char(l_er_val))
+            class = l_class||'_'||type
+              if (l_period_start = l_rec_start and l_period_end = l_rec_end) then
+               (
+                 l_val = round(to_number(GET_TABLE_VALUE('Aldar_AirFare',class,l_destination,'0'))/12,3)
+                 l_log = pay_internal_log_write(formula_name||'l_val : '||to_char(l_val))
+                )
+               else
+                (
+                  if to_char(l_period_start,'MON') = 'FEB' then
+                   (
+                    l_cal_days = days_between(l_period_start,l_period_start)+1
+                   )
+                   else
+                   (
+                    l_cal_days = 30
+                    )
+                    if r_count = e_count and r_count > 1 and  e_count > 1 then 
+				    (
+				     l_work_days = l_cal_days
+				    )
+				    ELSE
+				    (
+				       l_work_days = days_between(l_rec_end,l_rec_start)+1
+				    )
+				  l_log = pay_internal_log_write(formula_name||'l_cal_days '||to_char(l_cal_days))
+                  l_log = pay_internal_log_write(formula_name||'l_work_days '||to_char(l_work_days))
+                  l_df = round(to_number(GET_TABLE_VALUE('Aldar_AirFare',class,l_destination,'0'))/12,3)
+                  l_val = round((l_df/l_cal_days)*l_work_days,3) + l_er_val
+                  l_log = pay_internal_log_write(formula_name||'l_val : '||to_char(l_val))
+                 )
+                l_children = l_children + 1
+             )
+
+           )
+         /*---------------Spouse AirFare--------------------*/
+
+       IF J = 0 then 
+       ( 
+	    IF (TYPE = 'Other' and l_c_type = 'S') then
+         (
+		    l_log = pay_internal_log_write('------------------------------------------------')
+		    l_log = pay_internal_log_write(formula_name||'Dependent Name '||l_name)
+		    l_log = pay_internal_log_write(formula_name||'Dependent Age '||to_char(l_age))
+            l_log = pay_internal_log_write(formula_name||'Dependent type '||type)
+            l_log = pay_internal_log_write(formula_name||'Dependent Eligible '||l_eligible)
+            l_log = pay_internal_log_write(formula_name||'Dependent DOB '||TO_CHAR(l_dob,'dd-mm-yyyy'))
+            l_log = pay_internal_log_write(formula_name||'Dependent Effective Start Date '||TO_CHAR(l_ef_date,'dd-mm-yyyy'))
+			l_log = pay_internal_log_write(formula_name||'Dependent Effective End Date '||TO_CHAR(l_en_date,'dd-mm-yyyy'))
+			l_log = pay_internal_log_write(formula_name||'Period Start '||TO_CHAR(l_period_start,'dd-mm-yyyy'))
+		    l_log = pay_internal_log_write(formula_name||'Period End '||TO_CHAR(l_period_end,'dd-mm-yyyy'))
+		    l_log = pay_internal_log_write(formula_name||'Records Count '||to_char(r_count))
+		    l_log = pay_internal_log_write(formula_name||'Eligible Records Count '||to_char(e_count))
+			l_log = pay_internal_log_write(formula_name||'Previous Eligibile records Value '||to_char(l_er_val))
+           IF (l_period_start <> l_rec_start) OR (l_period_end <> l_rec_end)  then
+           (
+             if to_char(l_period_start,'MON') = 'FEB' then
+              (
+               l_cal_days = days_between(l_period_end,l_period_start)+1
+               )
+              else
+              (
+               l_cal_days = 30
+              )
+
+               if r_count = e_count and r_count > 1 and  e_count > 1 then 
+				(
+				 l_work_days = l_cal_days
+				)
+				ELSE
+				(
+				l_work_days = days_between(l_rec_end,l_rec_start)+1
+				)
+				 l_log = pay_internal_log_write(formula_name||'l_cal_days '||to_char(l_cal_days))
+                 l_log = pay_internal_log_write(formula_name||'l_work_days '||to_char(l_work_days))
+              class = l_class||'_Adult'
+              l_df = to_number(GET_TABLE_VALUE('Aldar_AirFare',class,l_destination,'0'))
+              l_val = round(((l_df/12)/l_cal_days)*l_work_days,3) + l_er_val
+              l_log = pay_internal_log_write(formula_name||'l_val : '||to_char(l_val))   
+            )
+           else
+           (
+             class = l_class||'_Adult'
+             l_val = round(to_number(GET_TABLE_VALUE('Aldar_AirFare',class,l_destination,'0'))/12,3)
+             l_log = pay_internal_log_write(formula_name||'l_val : '||to_char(l_val))
+           )
+         )
+
+
+		IF (TYPE = 'Other' and ( l_c_type = 'C'  or l_c_type = 'IN_D' or l_c_type = 'IN_S') and l_children < 3) then
+         (
+		    l_log = pay_internal_log_write('------------------------------------------------')
+		    l_log = pay_internal_log_write(formula_name||'Dependent Name '||l_name)
+		    l_log = pay_internal_log_write(formula_name||'Dependent Age '||to_char(l_age))
+            l_log = pay_internal_log_write(formula_name||'Dependent type '||type)
+            l_log = pay_internal_log_write(formula_name||'Dependent Eligible '||l_eligible)
+            l_log = pay_internal_log_write(formula_name||'Dependent DOB '||TO_CHAR(l_dob,'dd-mm-yyyy'))
+            l_log = pay_internal_log_write(formula_name||'Dependent Effective Start Date '||TO_CHAR(l_ef_date,'dd-mm-yyyy'))
+			l_log = pay_internal_log_write(formula_name||'Dependent Effective End Date '||TO_CHAR(l_en_date,'dd-mm-yyyy'))
+			l_log = pay_internal_log_write(formula_name||'Period Start '||TO_CHAR(l_period_start,'dd-mm-yyyy'))
+		    l_log = pay_internal_log_write(formula_name||'Period End '||TO_CHAR(l_period_end,'dd-mm-yyyy'))
+		    l_log = pay_internal_log_write(formula_name||'Records Count '||to_char(r_count))
+		    l_log = pay_internal_log_write(formula_name||'Eligible Records Count '||to_char(e_count))
+			l_log = pay_internal_log_write(formula_name||'Previous Eligibile records Value '||to_char(l_er_val))
+           IF (( l_rec_start <= ADD_MONTHS( l_dob,18*12)) AND (ADD_MONTHS( l_dob,18*12) <= l_rec_end))  then
+           (
+             if to_char(l_period_start,'MON') = 'FEB' then
+              (
+               l_cal_days = days_between(PAY_EARN_PERIOD_END,PAY_EARN_PERIOD_START)+1
+               )
+              else
+              (
+               l_cal_days = 30
+              )
+              l_end = ADD_MONTHS( l_dob,18*12)
+              l_work_days = days_between(l_end,l_rec_start)
+              class = l_class||'_Adult'
+              l_df = to_number(GET_TABLE_VALUE('Aldar_AirFare',class,l_destination,'0'))
+              l_val = round(((l_df/12)/l_cal_days)*l_work_days,3) + l_er_val
+			  l_log = pay_internal_log_write(formula_name||'l_work_days '||to_char(l_work_days))
+              l_log = pay_internal_log_write(formula_name||'l_val : '||to_char(l_val))  
+              l_children = l_children + 1			  
+            )
+          )
+		 )
+
+   l_value = l_value + l_val  
+   if l_val > 0 THEN
+   (
+     if l_child1 = 'XX' AND ( l_c_type = 'C'  or l_c_type = 'IN_D' or l_c_type = 'IN_S') THEN
+	 (
+	  l_child1 = l_name
+	 )
+	 else if l_child2 = 'YY' AND ( l_c_type = 'C'  or l_c_type = 'IN_D' or l_c_type = 'IN_S') THEN
+	 (
+	  l_child2 = l_name
+	 )
+	 else if l_child3 = 'ZZ' AND ( l_c_type = 'C'  or l_c_type = 'IN_D' or l_c_type = 'IN_S') THEN
+	 (
+	  l_child3 = l_name
+	 )
+   )
+  )
+
+
+  k = k + 1
+  l_val = 0
+  )
+ J = J + 1
+ if J = 1 then
+  (
+   l_p = 'Child'
+  )
+  else if j = 2 then
+  (
+   l_p = 'Infant'
+  )
+)
+
+)
+)
+l_air_fare = round(l_value)
+)
+)
+/*Aldar Airfare End*/
+/*C2i Airfare Start*/
+
+if(l_CAL_MODE = 'C2I')then(
+
+/**************************************CI AIRFARE START***************************************/
+l_cal_days            = DAYS_BETWEEN(pay_earn_period_end, pay_earn_period_start) + 1
+l_start_date          = GREATEST(pay_earn_period_start,pay_asg_hire_date)
+l_end_date            = LEAST(pay_earn_period_end,pay_asg_termination_date)
+l_tot_days            = DAYS_BETWEEN(l_end_date,l_start_date) + 1
+l_self      = 0
+l_amount     = 0
+l_child_count       = 0
+l_pro_start     = to_date('01-01-0001','DD-MM-YYYY')
+l_pro_end     = to_date('31-12-4712','DD-MM-YYYY')
+
+l_prorate_flag    = 'N'
+formula_name    = '[C2i Airfare Allowance]'
+
+
+
+l_family_eligible = GET_TABLE_VALUE('C2i_AIRFARE_ALLOWANCE_ELIGIBILITY','Eligibility',l_Grade,'0')  /*Family/Self*/
+l_log = pay_internal_log_write('C2i Airfare Family Eligible : '||l_family_eligible)
+
+l_fare =  to_number(GET_TABLE_VALUE('C2i_AIRFARE','AIRFARE',l_Grade,'0') )/12 /*Airfare Fare*/
+l_log = pay_internal_log_write('C2i Airfare Air_Fare : '||to_char(l_fare))
+
+call_formula('C2i Get Airfare'
+								, l_pro_start  > 	'prorate_start' 
+								, l_pro_end   >	'prorate_end'  
+								, l_grade    > 'l_grade'
+								, l_value   < 'l_value' default 0								
+								)
+
+								l_air_fare = round(l_value)
+l_log = pay_internal_log_write('Pension C2i Airfare value : '||to_char(l_air_fare))		
+)/*C2i Airfare End*/
+
+/*C2i Airfare End*/
+
+/*======================== Gross Salary Balance Adjustment ================*/
+
+      l_gross_adj = l_gross - ALDAR_GROSS_SALARY_ASG_ITD 
+
+/*======================== Basic Salary Balance Adjustment ================*/
+
+      l_basic_adj = l_basic - ALDAR_BASIC_SALARY_ASG_ITD 
+
+/*======================== Housing Allowance Balance Adjustment ================*/
+
+      l_hra_adj = l_hra - ALDAR_HOUSING_ALLOWANCE_ASG_ITD 
+
+/*======================== Social Allowance Balance Adjustment ================*/
+
+      l_social_adj = l_social - ALDAR_SOCIAL_ALLOWANCE_ASG_ITD 
+
+/*======================== Airfare Allowance Balance Adjustment ================*/
+
+      l_airfare_adj = l_air_fare - ALDAR_AIRFARE_ALLOWANCE_ASG_ITD 
+
+/*======================== Special Business Allowance Balance Adjustment ================*/
+
+      l_SPL_BUS_adj = l_SPL_BUS - ALDAR_SPECIAL_BUSINESS_ALLOWANCE_ASG_ITD 	  
+
+   l_log = pay_internal_log_write(formula_name ||' l_SPL_BUS_adj       :' || to_char(l_SPL_BUS_adj))   
+
+)
+else
+(
+ l_gross    = ALDAR_GROSS_SALARY_ASG_ITD
+ l_basic    = ALDAR_BASIC_SALARY_ASG_ITD
+ l_hra      = ALDAR_HOUSING_ALLOWANCE_ASG_ITD
+ l_social   = ALDAR_SOCIAL_ALLOWANCE_ASG_ITD
+ l_air_fare = ALDAR_AIRFARE_ALLOWANCE_ASG_ITD
+  l_SPL_BUS  = ALDAR_SPECIAL_BUSINESS_ALLOWANCE_ASG_ITD
+
+ l_log = pay_internal_log_write(formula_name ||' l_SPL_BUS 1        :' || to_char(l_SPL_BUS))
+)
+
+   l_log = pay_internal_log_write(formula_name ||' l_SPL_BUS_adj 1     :' || to_char(l_SPL_BUS_adj))   
+
+if (l_nationality = 'United Arab Emirates' and l_adpension = 'Old') then               
+(
+	l_rate			= least(l_gross + l_air_fare + l_SPL_BUS, 150000) 
+	l_emp_perctg	= to_number(GET_TABLE_VALUE('ALDAR_PENSION_CONTRIBUTION_PERCTG','EMP_PERCENTAGE',l_nationality,'0'))
+	l_empr_perctg	= to_number(GET_TABLE_VALUE('ALDAR_PENSION_CONTRIBUTION_PERCTG','EMPLR_PERCENTAGE',l_nationality,'0'))
+						
+    	l_log = pay_internal_log_write(formula_name ||' Employee percentage :' || to_char(l_emp_perctg))
+	    l_log = pay_internal_log_write(formula_name ||' Employer percentage :' || to_char(l_empr_perctg))
+	    l_log = pay_internal_log_write(formula_name ||' Salary rate         :' || to_char(l_rate))
+	
+	    l_emp_contr		= (l_emp_perctg/100) * l_rate 
+	    l_empr_contr	= (l_empr_perctg/100) * l_rate
+		
+	    if unpaid_days > 0 then
+		(
+		l_emp_contr		= (l_emp_contr / l_calendar_days) * l_working_days 
+		l_emp           = (l_empr_contr / l_calendar_days) * (unpaid_days)
+		l_emp_contr     =  l_emp_contr + l_emp
+	    l_empr_contr	= (l_empr_contr / l_calendar_days) * (l_working_days-unpaid_days)
+		
+		)
+		else
+		(
+	    l_emp_contr		= (l_emp_contr / l_calendar_days) * l_working_days 
+	    l_empr_contr	= (l_empr_contr / l_calendar_days) * l_working_days  
+		)
+	
+	
+	    l_log = pay_internal_log_write(formula_name ||'  Employee Contribution :' || to_char(l_emp_contr))
+	    l_log = pay_internal_log_write(formula_name ||'  Employer Contribution :' || to_char(l_empr_contr))
+		
+	return l_emp_contr, l_empr_contr, l_emp_perctg, l_empr_perctg,l_gross_adj,l_basic_adj,l_hra_adj,l_social_adj,l_airfare_adj,l_SPL_BUS_adj
+	
+)
+
+/********************************************************************************************************************************************************/
+
+else if (l_nationality = 'United Arab Emirates' and l_adpension = 'New') then
+
+(
+	l_rate			= least(l_gross + l_air_fare + l_SPL_BUS, 150000) 
+	l_emp_perctg	=  11/*to_number(GET_TABLE_VALUE('ALDAR_PENSION_CONTRIBUTION_PERCTG','EMP_PERCENTAGE',l_nationality,'0'))*/
+	l_empr_perctg	= to_number(GET_TABLE_VALUE('ALDAR_PENSION_CONTRIBUTION_PERCTG','EMPLR_PERCENTAGE',l_nationality,'0'))
+						
+    	l_log = pay_internal_log_write(formula_name ||' Employee percentage :' || to_char(l_emp_perctg))
+	    l_log = pay_internal_log_write(formula_name ||' Employer percentage :' || to_char(l_empr_perctg))
+	    l_log = pay_internal_log_write(formula_name ||' Salary rate         :' || to_char(l_rate))
+	
+	    l_emp_contr		= (l_emp_perctg/100) * l_rate 
+	    l_empr_contr	= (l_empr_perctg/100) * l_rate
+		
+	    if unpaid_days > 0 then
+		(
+		l_emp_contr		= (l_emp_contr / l_calendar_days) * l_working_days 
+		l_emp           = (l_empr_contr / l_calendar_days) * (unpaid_days)
+		l_emp_contr     =  l_emp_contr + l_emp
+	    l_empr_contr	= (l_empr_contr / l_calendar_days) * (l_working_days-unpaid_days)
+		
+		)
+		else
+		(
+	    l_emp_contr		= (l_emp_contr / l_calendar_days) * l_working_days 
+	    l_empr_contr	= (l_empr_contr / l_calendar_days) * l_working_days  
+		)
+	
+	
+	    l_log = pay_internal_log_write(formula_name ||'  Employee Contribution :' || to_char(l_emp_contr))
+	    l_log = pay_internal_log_write(formula_name ||'  Employer Contribution :' || to_char(l_empr_contr))
+		
+	return l_emp_contr, l_empr_contr, l_emp_perctg, l_empr_perctg,l_gross_adj,l_basic_adj,l_hra_adj,l_social_adj,l_airfare_adj,l_SPL_BUS_adj
+	
+)
+
+/*else if (l_nationality = 'United Arab Emirates' and l_pension_new = Old' ) then
+
+(
+	l_rate			= least(l_gross + l_air_fare + l_SPL_BUS, 200000) 
+	l_emp_perctg	= to_number(GET_TABLE_VALUE('ALDAR_PENSION_CONTRIBUTION_PERCTG','EMP_PERCENTAGE',l_nationality,'0'))
+	l_empr_perctg	= to_number(GET_TABLE_VALUE('ALDAR_PENSION_CONTRIBUTION_PERCTG','EMPLR_PERCENTAGE',l_nationality,'0'))
+						
+    	l_log = pay_internal_log_write(formula_name ||' Employee percentage :' || to_char(l_emp_perctg))
+	    l_log = pay_internal_log_write(formula_name ||' Employer percentage :' || to_char(l_empr_perctg))
+	    l_log = pay_internal_log_write(formula_name ||' Salary rate         :' || to_char(l_rate))
+	
+	    l_emp_contr		= (l_emp_perctg/100) * l_rate 
+	    l_empr_contr	= (l_empr_perctg/100) * l_rate
+		
+	    if unpaid_days > 0 then
+		(
+		l_emp_contr		= (l_emp_contr / l_calendar_days) * l_working_days 
+		l_emp           = (l_empr_contr / l_calendar_days) * (unpaid_days)
+		l_emp_contr     =  l_emp_contr + l_emp
+	    l_empr_contr	= (l_empr_contr / l_calendar_days) * (l_working_days-unpaid_days)
+		
+		)
+		else
+		(
+	    l_emp_contr		= (l_emp_contr / l_calendar_days) * l_working_days 
+	    l_empr_contr	= (l_empr_contr / l_calendar_days) * l_working_days  
+		)
+	
+	
+	    l_log = pay_internal_log_write(formula_name ||'  Employee Contribution :' || to_char(l_emp_contr))
+	    l_log = pay_internal_log_write(formula_name ||'  Employer Contribution :' || to_char(l_empr_contr))
+		
+	return l_emp_contr, l_empr_contr, l_emp_perctg, l_empr_perctg,l_gross_adj,l_basic_adj,l_hra_adj,l_social_adj,l_airfare_adj,l_SPL_BUS_adj
+	
+)*/
+
+/********************************************************************************************************************************************************/
+
+else if l_nationality = 'Saudi Arabia' then               
+(
+	l_rate			=   l_basic + l_hra /* l_gross + l_air_fare + l_SPL_BUS*/
+	l_emp_perctg	= to_number(GET_TABLE_VALUE('ALDAR_PENSION_CONTRIBUTION_PERCTG','EMP_PERCENTAGE',l_nationality,'0'))
+	l_empr_perctg	= to_number(GET_TABLE_VALUE('ALDAR_PENSION_CONTRIBUTION_PERCTG','EMPLR_PERCENTAGE',l_nationality,'0'))
+
+    	l_log = pay_internal_log_write(formula_name ||' Employee percentage :' || to_char(l_emp_perctg))
+	    l_log = pay_internal_log_write(formula_name ||' Employer percentage :' || to_char(l_empr_perctg))
+		l_log = pay_internal_log_write(formula_name ||' Basic Salary        :' || to_char(l_basic))
+		l_log = pay_internal_log_write(formula_name ||' Housing Allowance   :' || to_char(l_hra))
+	    l_log = pay_internal_log_write(formula_name ||' Salary rate         :' || to_char(l_rate))
+
+	    l_emp_contr		= (l_emp_perctg/100) * l_rate 
+	    l_empr_contr	= (l_empr_perctg/100) * l_rate
+
+		if unpaid_days > 0 then
+		(
+		l_emp_contr		= (l_emp_contr / l_calendar_days) * l_working_days 
+		l_emp           = (l_empr_contr / l_calendar_days) * (unpaid_days)
+		l_emp_contr     =  l_emp_contr + l_emp
+	    l_empr_contr	= (l_empr_contr / l_calendar_days) * (l_working_days-unpaid_days)
+
+
+		)
+		else(
+	    l_emp_contr		= (l_emp_contr / l_calendar_days) * l_working_days 
+	    l_empr_contr	= (l_empr_contr / l_calendar_days) * l_working_days  
+		)
+
+
+	    l_log = pay_internal_log_write(formula_name ||'  Employee Contribution :' || to_char(l_emp_contr))
+	    l_log = pay_internal_log_write(formula_name ||'  Employer Contribution :' || to_char(l_empr_contr))
+
+	return l_emp_contr, l_empr_contr, l_emp_perctg, l_empr_perctg,l_gross_adj,l_basic_adj,l_hra_adj,l_social_adj,l_airfare_adj,l_SPL_BUS_adj
+
+)
+
+else if l_nationality = 'Oman' then               
+(
+	l_rate			= least(l_gross + l_air_fare + l_SPL_BUS, 28803)
+	l_emp_perctg	= to_number(GET_TABLE_VALUE('ALDAR_PENSION_CONTRIBUTION_PERCTG','EMP_PERCENTAGE',l_nationality,'0'))
+	l_empr_perctg	= to_number(GET_TABLE_VALUE('ALDAR_PENSION_CONTRIBUTION_PERCTG','EMPLR_PERCENTAGE',l_nationality,'0'))
+
+    	l_log = pay_internal_log_write(formula_name ||' Employee percentage :' || to_char(l_emp_perctg))
+	    l_log = pay_internal_log_write(formula_name ||' Employer percentage :' || to_char(l_empr_perctg))
+		l_log = pay_internal_log_write(formula_name ||' Basic Salary        :' || to_char(l_gross))
+	    l_log = pay_internal_log_write(formula_name ||' Salary rate         :' || to_char(l_rate))
+
+	    l_emp_contr		= (l_emp_perctg/100) * l_rate 
+	    l_empr_contr	= (l_empr_perctg/100) * l_rate
+
+	    if unpaid_days > 0 then
+		(
+		l_emp_contr		= (l_emp_contr / l_calendar_days) * l_working_days
+        l_emp           = (l_empr_contr / l_calendar_days) * (unpaid_days)
+		l_emp_contr     =  l_emp_contr + l_emp		
+	    l_empr_contr	= (l_empr_contr / l_calendar_days) * (l_working_days-unpaid_days)
+
+		)
+		else
+		(
+	    l_emp_contr		= (l_emp_contr / l_calendar_days) * l_working_days 
+	    l_empr_contr	= (l_empr_contr / l_calendar_days) * l_working_days  
+		)  
+
+
+	    l_log = pay_internal_log_write(formula_name ||'  Employee Contribution :' || to_char(l_emp_contr))
+	    l_log = pay_internal_log_write(formula_name ||'  Employer Contribution :' || to_char(l_empr_contr))
+
+	return l_emp_contr, l_empr_contr, l_emp_perctg, l_empr_perctg,l_gross_adj,l_basic_adj,l_hra_adj,l_social_adj,l_airfare_adj,l_SPL_BUS_adj
+
+)
+
+else if l_nationality = 'Kuwait' then               
+(
+	l_rate			= l_gross + l_air_fare + l_SPL_BUS
+	l_emp_perctg	= to_number(GET_TABLE_VALUE('ALDAR_PENSION_CONTRIBUTION_PERCTG','EMP_PERCENTAGE',l_nationality,'0'))
+	l_empr_perctg	= to_number(GET_TABLE_VALUE('ALDAR_PENSION_CONTRIBUTION_PERCTG','EMPLR_PERCENTAGE',l_nationality,'0'))
+
+    	l_log = pay_internal_log_write(formula_name ||' Employee percentage :' || to_char(l_emp_perctg))
+	    l_log = pay_internal_log_write(formula_name ||' Employer percentage :' || to_char(l_empr_perctg))
+	    l_log = pay_internal_log_write(formula_name ||' Salary rate         :' || to_char(l_rate))
+
+	    l_emp_contr		= (l_emp_perctg/100) * l_rate 
+	    l_empr_contr	= (l_empr_perctg/100) * l_rate
+
+	    if unpaid_days > 0 then
+		(
+		l_emp_contr		= (l_emp_contr / l_calendar_days) * l_working_days 
+		l_emp           = (l_empr_contr / l_calendar_days) * (unpaid_days)
+		l_emp_contr     =  l_emp_contr + l_emp
+	    l_empr_contr	= (l_empr_contr / l_calendar_days) * (l_working_days-unpaid_days)
+
+		)
+		else
+		(
+	    l_emp_contr		= (l_emp_contr / l_calendar_days) * l_working_days 
+	    l_empr_contr	= (l_empr_contr / l_calendar_days) * l_working_days  
+		)
+
+
+	    l_log = pay_internal_log_write(formula_name ||'  Employee Contribution :' || to_char(l_emp_contr))
+	    l_log = pay_internal_log_write(formula_name ||'  Employer Contribution :' || to_char(l_empr_contr))
+
+	return l_emp_contr, l_empr_contr, l_emp_perctg, l_empr_perctg,l_gross_adj,l_basic_adj,l_hra_adj,l_social_adj,l_airfare_adj,l_SPL_BUS_adj
+
+)
+
+else if l_nationality = 'Qatar' then               
+(
+	l_rate			= l_gross + l_air_fare + l_SPL_BUS
+	l_emp_perctg	= to_number(GET_TABLE_VALUE('ALDAR_PENSION_CONTRIBUTION_PERCTG','EMP_PERCENTAGE',l_nationality,'0'))
+	l_empr_perctg	= to_number(GET_TABLE_VALUE('ALDAR_PENSION_CONTRIBUTION_PERCTG','EMPLR_PERCENTAGE',l_nationality,'0'))
+
+    	l_log = pay_internal_log_write(formula_name ||' Employee percentage :' || to_char(l_emp_perctg))
+	    l_log = pay_internal_log_write(formula_name ||' Employer percentage :' || to_char(l_empr_perctg))
+		l_log = pay_internal_log_write(formula_name ||' Basic Salary        :' || to_char(l_basic))
+		l_log = pay_internal_log_write(formula_name ||' Social Allowance    :' || to_char(l_social))
+	    l_log = pay_internal_log_write(formula_name ||' Salary rate         :' || to_char(l_rate))
+
+	    l_emp_contr		= (l_emp_perctg/100) * l_rate 
+	    l_empr_contr	= (l_empr_perctg/100) * l_rate
+
+	    if unpaid_days > 0 then
+		(
+		l_emp_contr		= (l_emp_contr / l_calendar_days) * l_working_days 
+		l_emp           = (l_empr_contr / l_calendar_days) * (unpaid_days)
+		l_emp_contr     =  l_emp_contr + l_emp
+	    l_empr_contr	= (l_empr_contr / l_calendar_days) * (l_working_days-unpaid_days)
+
+		)
+		else
+		(
+	    l_emp_contr		= (l_emp_contr / l_calendar_days) * l_working_days 
+	    l_empr_contr	= (l_empr_contr / l_calendar_days) * l_working_days  
+		)
+
+
+	    l_log = pay_internal_log_write(formula_name ||'  Employee Contribution :' || to_char(l_emp_contr))
+	    l_log = pay_internal_log_write(formula_name ||'  Employer Contribution :' || to_char(l_empr_contr))
+
+	return l_emp_contr, l_empr_contr, l_emp_perctg, l_empr_perctg,l_gross_adj,l_basic_adj,l_hra_adj,l_social_adj,l_airfare_adj,l_SPL_BUS_adj
+
+)
+
+else if l_nationality = 'Bahrain' then               
+(
+	l_rate			= least(l_gross + l_air_fare + l_SPL_BUS, 38986.35)
+	l_emp_perctg	= to_number(GET_TABLE_VALUE('ALDAR_PENSION_CONTRIBUTION_PERCTG','EMP_PERCENTAGE',l_nationality,'0'))
+	l_empr_perctg	= to_number(GET_TABLE_VALUE('ALDAR_PENSION_CONTRIBUTION_PERCTG','EMPLR_PERCENTAGE',l_nationality,'0'))
+
+    	l_log = pay_internal_log_write(formula_name ||' Employee percentage :' || to_char(l_emp_perctg))
+	    l_log = pay_internal_log_write(formula_name ||' Employer percentage :' || to_char(l_empr_perctg))
+		l_log = pay_internal_log_write(formula_name ||' Basic Salary        :' || to_char(l_basic))
+		l_log = pay_internal_log_write(formula_name ||' Social Allowance    :' || to_char(l_social))
+	    l_log = pay_internal_log_write(formula_name ||' Salary rate         :' || to_char(l_rate))
+
+	    l_emp_contr		= (l_emp_perctg/100) * l_rate 
+	    l_empr_contr	= (l_empr_perctg/100) * l_rate
+
+	    if unpaid_days > 0 then
+		(
+		l_emp_contr		= (l_emp_contr / l_calendar_days) * l_working_days 
+		l_emp           = (l_empr_contr / l_calendar_days) * (unpaid_days)
+		l_emp_contr     =  l_emp_contr + l_emp
+	    l_empr_contr	= (l_empr_contr / l_calendar_days) * (l_working_days-unpaid_days)
+
+		)
+		else
+		(
+	    l_emp_contr		= (l_emp_contr / l_calendar_days) * l_working_days 
+	    l_empr_contr	= (l_empr_contr / l_calendar_days) * l_working_days  
+		)  
+
+
+	    l_log = pay_internal_log_write(formula_name ||'  Employee Contribution :' || to_char(l_emp_contr))
+	    l_log = pay_internal_log_write(formula_name ||'  Employer Contribution :' || to_char(l_empr_contr))
+
+	return l_emp_contr, l_empr_contr, l_emp_perctg, l_empr_perctg,l_gross_adj,l_basic_adj,l_hra_adj,l_social_adj,l_airfare_adj,l_SPL_BUS_adj
+
+)
+
+else
+(
+	msg = 'Pension Contribution cannot be processed for '||l_nationality||' Employees'
+	return msg
+)

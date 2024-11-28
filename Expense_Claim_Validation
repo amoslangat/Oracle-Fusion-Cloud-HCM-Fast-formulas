@@ -1,0 +1,30 @@
+/* ****************************************************************************
+Formula name : Expense Claim Validation
+Formula type : Element Input Validation
+Description  : 
+Author       : Abdulrahman Mohammed
+Date         : 29-03-2023
+Last Updated : 
+Version      : 
+******************************************************************************/
+
+Default for Amount is 0
+
+Inputs are Amount
+
+ 
+
+  FORMULA_STATUS = 'E'
+  FORMULA_MESSAGE = '"Please Enter the Amount"'
+
+ if (Amount > 0 ) then
+(
+  FORMULA_STATUS  = 'S'
+  return FORMULA_STATUS
+)
+else
+(
+  FORMULA_STATUS = 'E'
+  FORMULA_MESSAGE = '"Please Enter the Amount"'
+  return FORMULA_STATUS, FORMULA_MESSAGE
+)	

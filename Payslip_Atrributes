@@ -1,0 +1,81 @@
+/**********************************************************************
+FORMULA NAME : Payslip Atrributes
+FORMULA TYPE : Payroll
+Author       : Amos Langat
+Date         : 18-04-2023
+Last Updated on : 22-DEC-2023
+***********************************************************************/
+
+/** DATABASE ITEMS DEFAULT VALUES START **/
+Default for ASG_HR_ASG_ID is 0
+Default for PAY_ASG_TERMINATION_DATE is '4712/12/31 00:00:00' (DATE)
+Default for PAY_EARN_PERIOD_START is '1951/01/01 00:00:00' (DATE)
+Default for PAY_EARN_PERIOD_END is '4712/12/31 00:00:00' (DATE)
+Default for PAY_ASG_HIRE_DATE is '1951/01/01 00:00:00' (DATE)
+default for per_per_citizenship_leg_name is 'xx'
+/** DATABASE ITEMS DEFAULT VALUES END **/
+
+formula_name		 = '[ALDAR Payslip Atrributes]'
+
+/** LOCAL VARIABLES BEGIN **/
+l_nationality = 'X'
+l_BU   = 'X'
+l_LE   = 'X'
+l_MOL  = 'X'
+l_location     = 'X'
+hr_id          = ASG_HR_ASG_ID
+l_payroll_month= 'X'
+BU_elig = 0
+l_format = ' '
+l_eff_date 	   = LEAST(PAY_EARN_PERIOD_END,PAY_ASG_TERMINATION_DATE)
+l_person_id    = GET_CONTEXT(PERSON_ID,0)
+/** LOCAL VARIABLES END **/
+l_log = pay_internal_log_write(formula_name||' BU is : '||l_BU)
+p_date          = to_char(l_eff_date,'yyyy-MM-dd')
+
+
+/** BU of employee **/
+/*l_BU = get_value_set('ALDAR_PAYSLIP_BU','|=p_person_id='''||to_char(l_person_id)||''''||'|P_DATE='''||p_date||'''')*/
+CALL_FORMULA('ALDAR Get HR Data',
+                hr_id       > 'hr_id',
+				l_eff_date  > 'eff_date',
+			    'Business Unit'  > 'mode',
+				l_BU       < 'l_text'  DEFAULT 'X'
+			)
+CALL_FORMULA('ALDAR Get HR Data',
+                hr_id       > 'hr_id',
+				l_eff_date  > 'eff_date',
+			    'Legal Employer'  > 'mode',
+				l_LE       < 'l_text'  DEFAULT 'X'
+			)
+CALL_FORMULA('ALDAR Get HR Data',
+                hr_id       > 'hr_id',
+				l_eff_date  > 'eff_date',
+			    'MOL Entity'  > 'mode',
+				l_MOL       < 'l_text'  DEFAULT 'X'
+			)			
+			
+			
+l_nationality = per_per_citizenship_leg_name
+
+l_CAL_MODE = GET_TABLE_VALUE('ALDAR_BUSINESS_UNIT_ELIGIBILITY','Eligibility',l_BU,'0')
+l_log = pay_internal_log_write(formula_name||' CAL_MODE   :'||l_CAL_MODE)
+
+if(l_CAL_MODE = 'C2I')then(
+		BU_elig = 2
+		
+		if(l_MOL != 'X')then (
+			l_format = GET_TABLE_VALUE('C2i_PAYSLIP_FORMAT','FORMAT',l_MOL,'0')
+		)
+		
+		else ( l_format = GET_TABLE_VALUE('C2i_PAYSLIP_FORMAT','FORMAT',l_BU,'0') )
+	)
+else if(l_CAL_MODE = 'ALDAR') then(BU_elig = 1)
+
+l_payroll_month = to_char(PAY_EARN_PERIOD_START,'MON-YYYY')
+
+l_log = pay_internal_log_write(formula_name||' BU is : '||l_BU)
+l_log = pay_internal_log_write(formula_name||' l_nationality is : '||l_nationality)
+l_log = pay_internal_log_write(formula_name||' LE is : '||l_LE)
+
+return l_BU, l_nationality,l_payroll_month, l_LE, l_CAL_MODE, BU_elig, l_format

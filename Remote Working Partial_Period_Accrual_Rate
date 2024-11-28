@@ -1,0 +1,103 @@
+/*
+****************************************************************************************************
+ Formula Name   : Remote Working Partial Period Accrual Rate
+ Formula Type   : Global Absence Partial Period Accrual Rate
+
+ 
+ Description    : •	Employees are eligible for work from home for a period of 15 working days in a calendar year.
+                  •	 Employees are eligible for work from home for a period of 30 working days in a calendar year.
+                  •	Monthly Accrual of Remote Working is required
+ 
+ Author         : Amos Langat
+ Creation date  : 30-Dec-2022
+ Last update on : 
+*******************************************************************************************************/ 
+
+
+default for acp_hire_date is '0001/01/01 00:00:00' (date)
+default for PER_PERSON_ENTERPRISE_HIRE_DATE	is '0001/01/01 00:00:00' (date)
+default for acp_termination_date is '4712/12/31 00:00:00' (date)
+default for anc_abs_entrs_absence_type_id is -1
+default for anc_abs_entrs_duration is 0
+default_data_value for anc_per_abs_entrs_absence_entry_id_arr is 0
+default for anc_abs_entrs_absence_status_cd is 'zz'
+default for anc_abs_entrs_approval_status_cd is 'zz'
+default for anc_abs_entrs_start_date is '0001/01/01 00:00:00' (date)
+default for anc_abs_entrs_end_date is '4712/12/31 00:00:00' (date)
+default for anc_abs_entrs_absence_type_id is 0 
+default for anc_abs_pln_name is 'zz'
+default for asg_hr_asg_id is 0
+DEFAULT FOR PER_ASG_BUSINESS_UNIT_NAME IS 'X'
+
+inputs are	iv_accrualperiodstartdate(date),
+			iv_accrualperiodenddate(date),
+			iv_caledarstartdate(date),
+			iv_caledarenddate(date),
+			IV_PLANENROLLMENTSTARTDATE (date)
+			
+l_asg_id           = asg_hr_asg_id
+l_acp_start_date	= trunc(iv_accrualperiodstartdate)
+l_acp_end_date		= trunc(iv_accrualperiodenddate)
+/*l_monthly_elig		= 30/12*/
+l_monthly_elig		= 15
+l_monthly_accrual	= 0
+l_days              = 0
+l_period_days		= days_between(l_acp_end_date, l_acp_start_date)+1
+l_start_date		= add_months(trunc(l_acp_start_date,'yyyy'),-12)
+l_end_date			= l_acp_end_date
+l_plan_name			= anc_abs_pln_name
+l_calendar_days		= days_between(l_acp_end_date, l_acp_start_date) +1	
+formula_name        = '[Aldar Remote Working Partial Period Accrual Rate]'
+
+
+l_log = ess_log_write(formula_name + ' l_monthly_elig '||to_char(l_monthly_elig))
+l_log = ess_log_write(formula_name + ' l_calendar_days '||to_char(l_calendar_days))
+l_log = ess_log_write(formula_name + ' l_plan_name '||l_plan_name)
+l_log = ess_log_write(formula_name + ' l_acp_start_date '||to_char(l_acp_start_date))
+l_log = ess_log_write(formula_name + ' l_acp_end_date '||to_char(l_acp_end_date))
+l_log = ess_log_write(formula_name + ' l_period_days '||to_char(l_period_days))
+l_log = ess_log_write(formula_name + ' acp_hire_date '||to_char(acp_hire_date))
+l_log = ess_log_write(formula_name + ' Enterprise Hire Date '||to_char(per_person_enterprise_hire_date))
+l_log = ess_log_write(formula_name + ' acp_termination_date '||to_char(acp_termination_date))
+
+
+/*CAL_MODE(BU) start*/
+CHANGE_CONTEXTS (HR_ASSIGNMENT_ID = asg_hr_asg_id,EFFECTIVE_DATE = l_acp_end_date)
+		(
+			l_BU = PER_ASG_BUSINESS_UNIT_NAME
+		)
+
+
+l_CAL_MODE = GET_TABLE_VALUE('ALDAR_BUSINESS_UNIT_ELIGIBILITY','Eligibility',l_BU,'0')
+l_log = ESS_LOG_WRITE(formula_name||' CAL_MODE   :'||l_CAL_MODE)
+/*CAL_MODE(BU) end*/
+if(l_CAL_MODE = 'C2I') then (l_monthly_elig = 30)
+
+l_hr_asg_id			= asg_hr_asg_id
+l_eff_date			= trunc(least(acp_termination_date, l_acp_end_date))
+
+
+l_monthly_accrual	= l_monthly_elig
+l_log = ess_log_write(formula_name + ' l_monthly_accrual '||to_char(l_monthly_accrual))
+
+
+if(trunc(acp_hire_date) > l_acp_start_date and trunc(acp_termination_date)> l_acp_end_date ) then
+(
+	l_log = ess_log_write(formula_name + ' Hire and Termination Month')
+	l_days				= days_between(least(l_acp_end_date,acp_termination_date),trunc(acp_hire_date)) + 1
+	l_acc_days			= (l_days)/l_period_days
+	l_monthly_accrual	= round((l_acc_days)* l_monthly_elig,3)
+)	
+else if (trunc(acp_termination_date) <= l_acp_end_date ) then
+(
+	l_log = ess_log_write(formula_name + ' Termination Month')
+	l_days				= days_between(least(l_acp_end_date,acp_termination_date),trunc(greatest(acp_hire_date,l_acp_start_date))) + 1
+	l_acc_days			= (l_days)/l_period_days
+	l_monthly_accrual	=  round((l_acc_days)* l_monthly_elig,3)
+	l_log = ess_log_write(formula_name + 'l_monthly_accrual '||to_char(l_monthly_accrual))
+
+)
+
+accrual = round(l_monthly_accrual,3)
+
+return accrual

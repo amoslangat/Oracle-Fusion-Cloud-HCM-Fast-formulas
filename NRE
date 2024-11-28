@@ -1,0 +1,19 @@
+/*****************************************************************************
+Formula name: Non Recurring Earnings/ Deductions
+Formula type: Oracle Payroll
+******************************************************************************/
+default for Amount is 0
+
+inputs are Amount
+
+/*
+* Initializing local variables
+*/
+
+l_value = Amount
+
+l_log = pay_internal_log_write('(Non Recurring Earnings) - start')
+l_log = pay_internal_log_write('(Non Recurring Earnings) : l_value ' || to_char(l_value))
+l_log = pay_internal_log_write('(Non Recurring Earnings) - end')
+    
+return l_value

@@ -1,0 +1,679 @@
+/********************************************************** *
+* FORMULA NAME: LEVER_EMPLOYEE_INTEGRATION_GENERATE_HDL_FROM_TXT
+* FORMULA TYPE: HCM Data Loader
+* DESCRIPTION: This formula will create HDL from TXT File
+* CHANGE HISTORY:
+*****************************************************************
+Version Date Created By Comments
+-----------------------------------------------------------------------
+1.0 14-May-2024 Amos Langat Initial Version
+******************************************************************/
+INPUTS ARE OPERATION (text), LINENO (number), LINEREPEATNO (number),POSITION1 (text), POSITION2 (text), POSITION3 (text), POSITION4 (text), POSITION5 (text), POSITION6 (text),POSITION7 (text), POSITION8 (text), POSITION9 (text), POSITION10 (text), POSITION11 (text), POSITION12 (text),POSITION13 (text), POSITION14 (text), POSITION15 (text), POSITION16 (text), POSITION17 (text)DEFAULT FOR LINENO  IS 1
+DEFAULT FOR LINEREPEATNO IS 1
+DEFAULT FOR LINEREPEAT IS 'Y'
+
+/* Company Name|First Name|Last Name|Team|Department|Grade|Job Title|Job Level|Requisition Name|Salary|Candidate Hire Date|Date of Birth|Gender|Nationality|Nationality Type|Martial Status|Contract Type */
+
+DEFAULT FOR POSITION1 IS 'NO DATA'   /*Existing Field with Data ALDAR */   /*New field with Data ALDAR Company Name */
+DEFAULT FOR POSITION11 IS 'NO DATA'   /*EffectiveStartDate  Candidate Hire Date ---Earlier was Address Line 1*/
+DEFAULT FOR POSITION12 IS 'NO DATA'   /*Date of Birth                           -- Earlier was AddressLine2 */  
+DEFAULT FOR POSITION2 IS 'NO DATA'   /*First Name                               --Existing Field with Data EffectiveStartDate */
+DEFAULT FOR POSITION3 IS 'NO DATA'   /*Last Name                                ---Existing Field with Data DateOfBirth  */
+DEFAULT FOR POSITION4 IS 'NO DATA'   /*Data Team                               ---Existing Field with Data FirstName  */
+DEFAULT FOR POSITION5 IS 'NO DATA'   /*Business UnitDepartment                 --Existing Field with Data LastName  */
+DEFAULT FOR POSITION6 IS 'NO DATA'   /*Grade                                   --Existing Field with Data LastName */
+DEFAULT FOR POSITION7 IS 'NO DATA'   /*Job Title */
+DEFAULT FOR POSITION8 IS 'NO DATA'   /*Job Level*/
+DEFAULT FOR POSITION9 IS 'NO DATA'   /* Position Name                          --Existing Field with Data PhoneNumber  */
+DEFAULT FOR POSITION10 IS 'NO DATA'   /*Salary                                 --Existing Field with Data AddressType HM */
+DEFAULT FOR POSITION13 IS 'NO DATA'   /*Gender                                --Existing New field with Data*/
+DEFAULT FOR POSITION14 IS 'NO DATA'   /*Nationality                           ---Existing Field with Data Region2*/
+DEFAULT FOR POSITION15 IS 'NO DATA'   /*Nationality Type */
+DEFAULT FOR POSITION16 IS 'NO DATA'   /*Martial Status */
+DEFAULT FOR POSITION17 IS 'NO DATA'   /*Contract Type                         ---Existing Field with Data Citizenship Country */
+   
+utc_date = GET_SYSDATE()
+cst_date = NEW_TIME(utc_date, 'GMT', 'CST')
+
+IF OPERATION='FILETYPE' THEN 
+   OUTPUTVALUE='DELIMITED' 
+ELSE IF OPERATION='DELIMITER' THEN 	
+	OUTPUTVALUE='|' 
+ELSE IF OPERATION='READ' THEN 
+   OUTPUTVALUE='NONE'
+ELSE IF OPERATION = 'NUMBEROFBUSINESSOBJECTS' THEN
+   (
+   OUTPUTVALUE = '14'
+   RETURN OUTPUTVALUE
+   )
+ELSE IF OPERATION = 'METADATALINEINFORMATION' THEN
+    (
+    METADATA1[1] = 'Worker' /*FileName*/ /*Reserved*/
+    METADATA1[2] = 'Worker' /*FileDiscriminator*/ /*Reserved*/
+    METADATA1[3] = 'SourceSystemOwner'
+    METADATA1[4] = 'SourceSystemId'
+    METADATA1[5] = 'EffectiveStartDate'
+    METADATA1[6] = 'EffectiveEndDate'
+    METADATA1[7] = 'StartDate'
+    METADATA1[8] = 'DateOfBirth'
+    METADATA1[9] = 'ActionCode'
+
+    METADATA2[1] = 'Worker' /*FileName*/ /*Reserved*/
+    METADATA2[2] = 'PersonAddress' /*FileDiscriminator*/ /*Reserved*/
+    METADATA2[3] = 'SourceSystemOwner'
+    METADATA2[4] = 'SourceSystemId'
+    METADATA2[5] = 'PersonId(SourceSystemId)'
+    METADATA2[6] = 'EffectiveStartDate'
+    METADATA2[7] = 'EffectiveEndDate'
+    METADATA2[8] = 'AddressType'  /* HOME*/
+    METADATA2[9] = 'AddressLine1'  /* Villa 29 */
+    METADATA2[10] = 'AddressLine2'  /* Al Hiwaylah Street Sector 7 */
+    METADATA2[11] = 'Region1'       /* Baniyas East */
+    METADATA2[12] = 'Region2'       /* Abu Dhabi    */
+    METADATA2[13] = 'Region3'       /* Abu Dhabi    */
+    METADATA2[14] = 'Country'       /*  AE          */
+    METADATA2[15] = 'PostalCode'    /* 123314       */
+	
+    METADATA3[1] = 'Worker' /*FileName*/ /*Reserved*/
+    METADATA3[2] = 'PersonCitizenship' /*FileDiscriminator*/
+    METADATA3[3] = 'SourceSystemOwner'
+    METADATA3[4] = 'SourceSystemId'
+    METADATA3[5] = 'PersonId(SourceSystemId)'
+    METADATA3[6] = 'DateFrom'
+    METADATA3[7] = 'DateTo'
+    METADATA3[8] = 'LegislationCode'
+    METADATA3[9] = 'CitizenshipStatus'
+	
+    METADATA4[1] = 'Worker' /*FileName*/ /*Reserved*/
+    METADATA4[2] = 'PersonLegislativeData' /*FileDiscriminator*/
+    METADATA4[3] = 'SourceSystemOwner'
+    METADATA4[4] = 'SourceSystemId'
+    METADATA4[5] = 'PersonId(SourceSystemId)'
+    METADATA4[6] = 'EffectiveStartDate'
+    METADATA4[7] = 'EffectiveEndDate'
+    METADATA4[8] = 'LegislationCode'
+    METADATA4[9] = 'MaritalStatus'
+    METADATA4[10] = 'Sex'
+	
+    METADATA5[1] = 'Worker' /*FileName*/ /*Reserved*/
+    METADATA5[2] = 'PersonName' /*FileDiscriminator*/
+    METADATA5[3] = 'SourceSystemOwner'
+    METADATA5[4] = 'SourceSystemId'
+    METADATA5[5] = 'PersonId(SourceSystemId)'
+    METADATA5[6] = 'EffectiveStartDate'
+    METADATA5[7] = 'EffectiveEndDate'
+    METADATA5[8] = 'LegislationCode'
+    METADATA5[9] = 'NameType'
+    METADATA5[10] = 'FirstName'
+    METADATA5[11] = 'LastName'
+    METADATA5[12] = 'Title'
+	
+    METADATA6[1] = 'Worker' /*FileName*/ /*Reserved*/
+    METADATA6[2] = 'PersonPhone' /*FileDiscriminator*/
+    METADATA6[3] = 'SourceSystemOwner'
+    METADATA6[4] = 'SourceSystemId'
+    METADATA6[5] = 'PersonId(SourceSystemId)'
+    METADATA6[6] = 'DateFrom'
+    METADATA6[7] = 'DateTo'
+    METADATA6[8] = 'PhoneType'
+    METADATA6[9] = 'LegislationCode'
+    METADATA6[10] = 'PhoneNumber'
+
+
+    METADATA7[1] = 'Worker' /*FileName*/ /*Reserved*/
+    METADATA7[2] = 'PersonReligion' /*FileDiscriminator*/
+    METADATA7[3] = 'SourceSystemOwner'
+    METADATA7[4] = 'SourceSystemId'
+    METADATA7[5] = 'PersonId(SourceSystemId)'
+    METADATA7[6] = 'LegislationCode'
+    METADATA7[7] = 'Religion'
+    METADATA7[8] = 'PrimaryFlag'
+	
+    METADATA8[1] = 'Worker' /*FileName*/ /*Reserved*/
+    METADATA8[2] = 'WorkRelationship' /*FileDiscriminator*/
+    METADATA8[3] = 'SourceSystemOwner'
+    METADATA8[4] = 'SourceSystemId'
+    METADATA8[5] = 'PersonId(SourceSystemId)'
+    METADATA8[6] = 'LegalEmployerName'
+    METADATA8[7] = 'DateStart'
+    METADATA8[8] = 'PrimaryFlag'
+    METADATA8[9] = 'WorkerType'
+    METADATA8[10] = 'OnMilitaryServiceFlag'
+    METADATA8[11] = 'RehireRecommendationFlag'
+	
+    METADATA9[1] = 'Worker' /*FileName*/ /*Reserved*/
+    METADATA9[2] = 'WorkTerms' /*FileDiscriminator*/
+    METADATA9[3] = 'SourceSystemOwner'
+    METADATA9[4] = 'SourceSystemId'
+    METADATA9[5] = 'PersonId(SourceSystemId)'
+    METADATA9[6] = 'EffectiveStartDate'
+    METADATA9[7] = 'EffectiveEndDate'
+    METADATA9[8] = 'EffectiveSequence'
+    METADATA9[9] = 'EffectiveLatestChange'
+    METADATA9[10] = 'AssignmentName'
+    METADATA9[11] = 'AssignmentNumber'
+    METADATA9[12] = 'AssignmentStatusTypeCode'
+    METADATA9[13] = 'AssignmentType'
+    METADATA9[14] = 'BusinessUnitShortCode'
+    METADATA9[15] = 'PositionOverrideFlag'
+    METADATA9[16] = 'PrimaryWorkTermsFlag'
+    METADATA9[17] = 'PeriodOfServiceId(SourceSystemId)'
+    METADATA9[18] = 'LegalEmployerName'
+    METADATA9[19] = 'SystemPersonType'
+    METADATA9[20] = 'ActionCode'
+	
+    METADATA10[1] = 'Worker' /*FileName*/ /*Reserved*/
+    METADATA10[2] = 'Contract' /*FileDiscriminator*/
+    METADATA10[3] = 'SourceSystemOwner'
+    METADATA10[4] = 'SourceSystemId'
+    METADATA10[5] = 'PersonId(SourceSystemId)'
+    METADATA10[6] = 'AssignmentId(SourceSystemId)'
+    METADATA10[7] = 'ContractType'
+    METADATA10[8] = 'EffectiveStartDate'
+    METADATA10[9] = 'AssignmentNumber'
+    METADATA10[10] = 'ContractNumber'
+  
+    METADATA11[1] = 'Worker' /*FileName*/ /*Reserved*/
+    METADATA11[2] = 'Assignment' /*FileDiscriminator*/
+    METADATA11[3] = 'SourceSystemOwner'
+    METADATA11[4] = 'SourceSystemId'
+    METADATA11[5] = 'ActionCode'
+    METADATA11[6] = 'EffectiveStartDate'
+    METADATA11[7] = 'EffectiveSequence'
+    METADATA11[8] = 'EffectiveLatestChange'
+    METADATA11[9] = 'WorkTermsAssignmentId(SourceSystemId)'
+    METADATA11[10] = 'PersonTypeCode'
+    METADATA11[11] = 'BusinessUnitShortCode'
+    METADATA11[12] = 'PrimaryAssignmentFlag'
+    METADATA11[13] = 'JobCode'
+    METADATA11[14] = 'WorkTermsNumber'
+    METADATA11[15] = 'GradeCode'
+    METADATA11[16] 	= 'PositionOverrideFlag'
+    METADATA11[17] 	= 'AssignmentCategory'
+	METADATA11[18] = 'PersonId(SourceSystemId)'
+	METADATA11[19] = 'PeriodOfServiceId(SourceSystemId)'
+	METADATA11[20] = 'DateStart'
+	METADATA11[21] = 'DepartmentName'
+	METADATA11[22] = 'PositionCode'
+	METADATA11[23] = 'WorkerType'
+
+    METADATA12[1] = 'Salary' /*FileName*/ /*Reserved*/
+    METADATA12[2] = 'Salary' /*FileDiscriminator*/
+    METADATA12[3] = 'SourceSystemOwner'
+    METADATA12[4] = 'SourceSystemId'
+    METADATA12[5] = 'AssignmentId(SourceSystemId)'
+    METADATA12[6] = 'DateFrom'
+    METADATA12[7] = 'SalaryAmount'
+    METADATA12[8] = 'MultipleComponents'
+    METADATA12[9] = 'SalaryBasisName'
+    METADATA12[10] = 'ActionCode'
+
+    METADATA13[1]  = 'Position' /*FileName*/ /*Reserved*/
+    METADATA13[2]  = 'Position' /*FileDiscriminator*/
+    METADATA13[3]  = 'SourceSystemOwner'
+    METADATA13[4]  = 'SourceSystemId'
+    METADATA13[5]  = 'EffectiveStartDate'
+    METADATA13[6]  = 'EffectiveEndDate'
+    METADATA13[7]  = 'Name'
+    METADATA13[8]  = 'PositionCode'
+    METADATA13[9]  = 'BusinessUnitName'
+    METADATA13[10] = 'ActiveStatus'
+    METADATA13[11]  = 'JobCode'
+    METADATA13[12]  = 'JobSetCode'
+    METADATA13[13]  = 'DepartmentName'
+    METADATA13[14]  = 'HiringStatus'
+    METADATA13[15]  = 'PositionType'
+    METADATA13[16]  = 'FTE'
+    METADATA13[17]  = 'HeadCount'
+    METADATA13[18]  = 'FullPartTime'
+    METADATA13[19]  = 'WorkingHours'
+    METADATA13[20]  = 'Frequency'
+
+    METADATA14[1]  = 'AssignedPayroll' /*FileName*/ /*Reserved*/
+    METADATA14[2]  = 'AssignedPayroll' /*FileDiscriminator*/
+    METADATA14[3]  = 'SourceSystemOwner'
+    METADATA14[4]  = 'SourceSystemId'
+    METADATA14[5]  = 'EffectiveStartDate'
+    METADATA14[6]  = 'AssignmentId(SourceSystemId)'
+    METADATA14[7]  = 'PayrollDefinitionCode'
+    METADATA14[8]  = 'LegislativeDataGroupName'
+    METADATA14[9]  = 'StartDate'
+
+	
+   RETURN METADATA1, METADATA2 , METADATA3, METADATA4, METADATA5, METADATA6 ,METADATA7 ,METADATA8,METADATA9 ,METADATA10 ,METADATA11, METADATA12, METADATA13, METADATA14
+
+    )
+ELSE IF (OPERATION='MAP' AND POSITION1='ALDAR') THEN 
+    /*HDL Related Outputs*/
+   (
+
+    FileName = 'Worker'
+    BusinessOperation = 'MERGE'
+    SourceSystemOwner = 'LEVER'
+    EffectiveStartDate = trim(POSITION11)
+    EffectiveEndDate  = '4712/12/31'
+    DateFrom= trim(POSITION11)
+    DateTo= '4712/12/31'
+    LC_TIME  =TO_CHAR(cst_date ,'YYYYMMDDHH24MI')
+	LC_LEGAL_EMPLOYER      = 'Aldar Properties'
+	LC_PAYROLL_NAME        = 'Aldar Development Payroll'
+    "PersonId(SourceSystemId)" = 'LEVER_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+    RET = ESS_LOG_WRITE('Start of Map Operations time LC_TIME  :' ||LC_TIME  ) 
+	/*Assigning Payroll and Legal Employer based on business unit */	
+   IF trim(POSITION5) ='Avobar' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'AVOBAR RESTAURANT - SOLE PROPRIETORSHIP L.L.C.'
+	LC_PAYROLL_NAME        = 'C2i Payroll'
+	)
+   IF trim(POSITION5) ='Aldar Development' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'Aldar Properties'
+	LC_PAYROLL_NAME        = 'Aldar Development Payroll'
+	)
+   IF trim(POSITION5) ='Teyaseer' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'Teyaseer'
+	LC_PAYROLL_NAME        = 'Teyaseer Payroll'
+	)
+   IF trim(POSITION5) ='Aldar Dubai Holding' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'Aldar Dubai Holding'
+	LC_PAYROLL_NAME        = 'Aldar Development Payroll'
+	)
+   IF trim(POSITION5) ='Aldar Corporate' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'Aldar Corporate'
+	LC_PAYROLL_NAME        = 'Aldar Corporate Payroll'
+	)
+   IF trim(POSITION5) ='C2i Corporate' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'Cloud Spaces Sole Proprietorship LLC - Branch'
+	LC_PAYROLL_NAME        = 'C2i Payroll'
+	)
+   IF trim(POSITION5) ='Mancity' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'C2I HOLDING - SOLE PROPRIETORSHIP L.L.C. - BRANCH (Mancity)'
+	LC_PAYROLL_NAME        = 'C2i Payroll'
+	)
+   IF trim(POSITION5) ='Cloud Spaces Circle Mall' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'Cloud Spaces Business Center LLC'
+	LC_PAYROLL_NAME         = 'C2i Payroll'
+	)
+   IF trim(POSITION5) ='Aldar Projects' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'Aldar Projects'
+	LC_PAYROLL_NAME        = 'Aldar Projects Payroll'
+	)
+   IF trim(POSITION5) ='Cloud Spaces Yas Mall' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'Cloud Spaces Business Center LLC'
+	LC_PAYROLL_NAME        = 'C2i Payroll'
+	)
+   IF trim(POSITION5) ='Cloud Spaces ADGM' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'Cloud Spaces - Sole Proprietorship LLC - ADGM'
+	LC_PAYROLL_NAME        = 'C2i Payroll'
+	)	
+   IF trim(POSITION5) ='Cloud Spaces WTC' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'Cloud Spaces - Sole Proprietorship LLC - Branch (WTC)'
+	LC_PAYROLL_NAME        = 'C2i Payroll'
+	)	
+   IF trim(POSITION5) ='ADRES' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'ADRES'
+	LC_PAYROLL_NAME        = 'ADRES Payroll'
+	)	
+   IF trim(POSITION5) ='Huna' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'C2i Holding - Sole Proprietorship LLC - Branch (Huna)'
+	LC_PAYROLL_NAME         = 'C2i Payroll'
+	)
+   IF trim(POSITION5) ='Aldar Estates' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'Aldar Estates'
+	LC_PAYROLL_NAME         = 'Aldar Development Payroll'
+	)
+   IF trim(POSITION5) ='Aldar Investment Property Management' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'Aldar Investment Property Management'
+	LC_PAYROLL_NAME         = 'AIPM Payroll'
+	)
+   IF trim(POSITION5) ='Abu Dhabi Business Hub' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'Abu Dhabi Business Hub'
+	LC_PAYROLL_NAME         = 'Aldar Development Payroll'
+	)
+   IF trim(POSITION5) ='Ether' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'Ether By Cloud Spaces Sole Proprietorship LLC'
+	LC_PAYROLL_NAME          = 'C2i Payroll'
+	)
+   IF trim(POSITION5) ='Gateway' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'Gateway'
+	LC_PAYROLL_NAME          = 'Gateway Payroll'
+	)
+   IF trim(POSITION5) ='Cloud Spaces HQ' THEN
+    (
+		LC_LEGAL_EMPLOYER      = 'Cloud Spaces Sole Proprietorship LLC - Branch'
+	LC_PAYROLL_NAME         = 'C2i Payroll'
+	)
+
+
+
+
+
+	
+   
+/*METADATA|Position|SourceSystemOwner|SourceSystemId|EffectiveStartDate|EffectiveEndDate|Name|PositionCode|BusinessUnitName|ActiveStatus|JobCode|JobSetCode|DepartmentName|HiringStatus|PositionType|FTE|HeadCount|FullPartTime|WorkingHours|Frequency
+MERGE|Position|LEVER|TECHNOLOGY LEAD - TECHNOLOGY|2021/01/01|4712/12/31|Technology Lead - Technology|Technology Lead - Technology|ADRES|A|HEAD|COMMON|Technology|APPROVED|NONE|100|100|FULL_TIME|40|W
+*/
+
+ IF LINEREPEATNO=1 THEN
+    (
+    FileName='Position'  /* Filename changed for position*/
+    RET = ESS_LOG_WRITE('LINEREPEATNO 1 before update :' ||TO_CHAR(LINEREPEATNO)) 
+   LINEREPEATNO=LINEREPEATNO+1
+    RET = ESS_LOG_WRITE('LINEREPEATNO 1 after update  :' ||TO_CHAR(LINEREPEATNO))  
+    RET = ESS_LOG_WRITE('LINENO       1 :' ||TO_CHAR(LINENO))   
+    FileDiscriminator = 'Position' /*FileDiscriminator*/
+    dummy = ESS_LOG_WRITE('FileDiscriminator after change : '||FileDiscriminator)
+	SourceSystemId    = 'LEVER_POSITION_' || trim(upper(POSITION9)) 
+        EffectiveStartDate  ='1951/01/01'
+        EffectiveEndDate    ='4712/12/31'
+        Name                =trim(POSITION9)
+        PositionCode        =trim(UPPER(SUBSTR(POSITION9,1,30)))
+        BusinessUnitName    = trim(POSITION5)
+        ActiveStatus        = 'A'
+        JobCode             =trim(UPPER(SUBSTR(POSITION8,1,30))) 
+        JobSetCode          = 'COMMON'
+        DepartmentName      =trim(POSITION4)
+        HiringStatus        ='APPROVED'
+        PositionType        ='NONE'
+        FTE                 ='100'
+        HeadCount           ='100'
+        FullPartTime        ='FULL_TIME'
+        WorkingHours        ='40'
+        Frequency           ='W'
+	
+    LINEREPEAT = 'Y'
+    RETURN
+	BusinessOperation,FileName,FileDiscriminator,SourceSystemOwner,SourceSystemId,EffectiveStartDate,EffectiveEndDate,Name,PositionCode,BusinessUnitName,ActiveStatus,JobCode,JobSetCode,DepartmentName,HiringStatus,PositionType,FTE,HeadCount,FullPartTime,WorkingHours,Frequency,LINEREPEATNO,LINEREPEAT
+    )
+
+
+ IF LINEREPEATNO=2 THEN
+    (
+
+    RET = ESS_LOG_WRITE('LINEREPEATNO 2 before update :' ||TO_CHAR(LINEREPEATNO)) 
+   LINEREPEATNO=LINEREPEATNO+1
+    RET = ESS_LOG_WRITE('LINEREPEATNO 2 after update  :' ||TO_CHAR(LINEREPEATNO))  
+    RET = ESS_LOG_WRITE('LINENO       2 :' ||TO_CHAR(LINENO))   
+    FileDiscriminator = 'Worker' /*FileDiscriminator*/
+    dummy = ESS_LOG_WRITE('FileDiscriminator after change 2: '||FileDiscriminator)
+	SourceSystemId    = 'LEVER_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+	StartDate         = trim(POSITION11)
+        DateStart         = trim(POSITION11)
+	DateOfBirth       = trim(POSITION12)
+	ActionCode        = 'HIRE'
+
+    LINEREPEAT = 'Y'
+    RETURN
+	BusinessOperation,FileName,FileDiscriminator,SourceSystemOwner,SourceSystemId,EffectiveStartDate,EffectiveEndDate,StartDate,DateOfBirth,ActionCode,LINEREPEATNO,LINEREPEAT
+    )
+
+           IF LINEREPEATNO=3 THEN
+           (
+        RET = ESS_LOG_WRITE('LINEREPEATNO 3 :' ||TO_CHAR(LINEREPEATNO))  
+        RET = ESS_LOG_WRITE('ORIGINAL LINENO       3 :' ||TO_CHAR(LINENO )) 
+        LINEREPEATNO   = LINEREPEATNO +1 
+         FileDiscriminator = 'PersonAddress' /*FileDiscriminator*/
+       dummy = ESS_LOG_WRITE('FileDiscriminator after change 3: '||FileDiscriminator)
+	SourceSystemId    = 'LEVER_ADDRESS_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        "PersonId(SourceSystemId)" = 'LEVER_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        AddressType = 'HOME'
+        AddressLine1 = '0000' /*trim(POSITION11) */
+        AddressLine2 = '0000' /*trim(POSITION12) */
+        Region1 = 'Abu Dhabi' /*trim(POSITION13)*/
+        Region2 = 'Abu Dhabi' /*trim(POSITION14)*/
+        Region3 = 'Abu Dhabi' /*trim(POSITION15)*/
+        Country = 'AE'  /*trim(POSITION15)*/
+        PostalCode = '51133' /*trim(POSITION16)*/
+        LINEREPEATNO=LINEREPEATNO+1
+        LINEREPEAT = 'Y'
+        RETURN BusinessOperation,FileName,FileDiscriminator,SourceSystemOwner,SourceSystemId,"PersonId(SourceSystemId)", EffectiveStartDate,EffectiveEndDate,AddressType,AddressLine1 ,AddressLine2 , Region1, Region2, Region3, Country , PostalCode ,LINEREPEATNO,LINEREPEAT
+           )
+
+	IF LINEREPEATNO=4 THEN
+           (
+        RET = ESS_LOG_WRITE('LINEREPEATNO 4 :' ||TO_CHAR(LINEREPEATNO))  
+        RET = ESS_LOG_WRITE('ORIGINAL LINENO       4 :' ||TO_CHAR(LINENO )) 
+        FileDiscriminator = 'PersonCitizenship' /*FileDiscriminator*/
+        dummy = ESS_LOG_WRITE('FileDiscriminator after change 4: '||FileDiscriminator)
+	    SourceSystemId    = 'LEVER_CITIZEN_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        "PersonId(SourceSystemId)" = 'LEVER_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        dummy = ESS_LOG_WRITE('PersonId(SourceSystemId) after change 4: '||"PersonId(SourceSystemId)")
+        DateFrom= trim(POSITION11)
+        DateTo= '4712/12/31'
+        LegislationCode= trim(UPPER(SUBSTR(POSITION14,1,2))) 
+        CitizenshipStatus= 'A'
+        LINEREPEATNO=LINEREPEATNO+1
+        LINEREPEAT = 'Y'
+        RETURN BusinessOperation,FileName,FileDiscriminator,SourceSystemOwner,SourceSystemId,"PersonId(SourceSystemId)",DateFrom ,DateTo , LegislationCode , CitizenshipStatus ,LINEREPEATNO,LINEREPEAT
+           )
+
+	IF LINEREPEATNO=5 THEN
+           (
+        RET = ESS_LOG_WRITE('LINEREPEATNO 5 :' ||TO_CHAR(LINEREPEATNO))  
+        RET = ESS_LOG_WRITE('ORIGINAL LINENO       5 :' ||TO_CHAR(LINENO )) 
+        FileDiscriminator = 'PersonLegislativeData' /*FileDiscriminator*/
+        dummy = ESS_LOG_WRITE('FileDiscriminator after change 5: '||FileDiscriminator)
+	SourceSystemId    = 'LEVER_LEG_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        "PersonId(SourceSystemId)" = 'LEVER_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        LegislationCode= 'AE'
+        IF trim(UPPER(POSITION16))='MARRIED' THEN
+         ( MaritalStatus='M')
+        ELSE 
+		( MaritalStatus='S')
+		
+        IF trim(UPPER(POSITION13))='MALE' THEN
+         ( Sex='M')
+        ELSE IF trim(UPPER(POSITION13))='FEMALE'  THEN
+         ( Sex='F' )
+        LINEREPEATNO=LINEREPEATNO+1
+        LINEREPEAT = 'Y'
+        RETURN BusinessOperation,FileName,FileDiscriminator,SourceSystemOwner,SourceSystemId,"PersonId(SourceSystemId)",EffectiveStartDate,EffectiveEndDate,LegislationCode,MaritalStatus,Sex ,LINEREPEATNO,LINEREPEAT
+           )
+
+	IF LINEREPEATNO=6 THEN
+           (
+        RET = ESS_LOG_WRITE('LINEREPEATNO 6 :' ||TO_CHAR(LINEREPEATNO))  
+        RET = ESS_LOG_WRITE('ORIGINAL LINENO       6 :' ||TO_CHAR(LINENO )) 
+        FileDiscriminator = 'PersonName' /*FileDiscriminator*/
+        dummy = ESS_LOG_WRITE('FileDiscriminator after change 6: '||FileDiscriminator)
+	SourceSystemId    = 'LEVER_NAME_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        "PersonId(SourceSystemId)" = 'LEVER_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        LegislationCode= 'AE'
+        NameType='GLOBAL'
+        FirstName=trim(POSITION2)
+        /*IF ISNULL(POSITION3)='Y' THEN
+         ( 
+          LastName='.'
+          )
+        ELSE */
+          
+        LastName=trim(POSITION3)
+           
+        IF trim(UPPER(POSITION13))='MALE' THEN
+         ( Title ='MR.')
+        ELSE IF trim(UPPER(POSITION13))='FEMALE'  THEN
+         ( Title ='MS.')
+        ELSE IF (trim(UPPER(POSITION13))='FEMALE' AND  trim(UPPER(POSITION16))='MARRIED' ) THEN
+         ( Title ='MRS.')
+        LINEREPEATNO=LINEREPEATNO+1
+        LINEREPEAT = 'Y'
+        RETURN BusinessOperation,FileName,FileDiscriminator,SourceSystemOwner,SourceSystemId,"PersonId(SourceSystemId)",EffectiveStartDate,EffectiveEndDate,LegislationCode,NameType, FirstName, LastName, Title ,LINEREPEATNO,LINEREPEAT
+           )
+
+        IF  LINEREPEATNO=7  THEN
+           (
+        RET = ESS_LOG_WRITE('LINEREPEATNO 9 :' ||TO_CHAR(LINEREPEATNO))  
+        RET = ESS_LOG_WRITE('ORIGINAL LINENO       9 :' ||TO_CHAR(LINENO )) 
+        FileDiscriminator = 'WorkRelationship' /*FileDiscriminator*/
+        dummy = ESS_LOG_WRITE('FileDiscriminator after change 9: '||FileDiscriminator)
+	SourceSystemId    = 'LEVER_WR_SERVICE_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        "PersonId(SourceSystemId)" = 'LEVER_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        LegalEmployerName          = LC_LEGAL_EMPLOYER /* Aldar Properties LEGAL EMPLOYER HAS TO BE DERIVED FROM BUSINESS UNIT */
+        DateStart                  = trim(POSITION11)
+        PrimaryFlag                = 'Y'
+        WorkerType                 = 'E'
+        OnMilitaryServiceFlag      = 'N'
+        RehireRecommendationFlag   = 'Y'
+        LINEREPEATNO=LINEREPEATNO+1
+        LINEREPEAT = 'Y'
+        RETURN BusinessOperation,FileName,FileDiscriminator,SourceSystemOwner,SourceSystemId,"PersonId(SourceSystemId)",LegalEmployerName,DateStart,PrimaryFlag,WorkerType,OnMilitaryServiceFlag,RehireRecommendationFlag,LINEREPEATNO,LINEREPEAT
+           )
+        IF  LINEREPEATNO=8  THEN
+           (
+        RET = ESS_LOG_WRITE('LINEREPEATNO 10 :' ||TO_CHAR(LINEREPEATNO))  
+        RET = ESS_LOG_WRITE('ORIGINAL LINENO       10 :' ||TO_CHAR(LINENO )) 
+        FileDiscriminator = 'WorkTerms' /*FileDiscriminator*/
+        dummy = ESS_LOG_WRITE('FileDiscriminator after change 10: '||FileDiscriminator)
+        
+	SourceSystemId    = 'LEVER_WT_' || trim(upper(POSITION2)) ||'_'||LC_TIME      /*_2024_05_20'*/
+        "PersonId(SourceSystemId)" = 'LEVER_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        EffectiveSequence          ='1'
+        EffectiveLatestChange      = 'Y'
+        AssignmentName             = 'ET'||LC_TIME         
+        AssignmentNumber           = 'ET'||LC_TIME  
+        AssignmentStatusTypeCode   = 'ACTIVE_PROCESS'
+        AssignmentType             ='ET'
+        BusinessUnitShortCode      = trim(POSITION5)      /*Aldar Development*/
+        PositionOverrideFlag       = 'Y'
+        PrimaryWorkTermsFlag       = 'Y'
+        "PeriodOfServiceId(SourceSystemId)" = 'LEVER_WR_SERVICE_' || trim(upper(POSITION2))||'_'||LC_TIME  /*_2024_05_20'*/
+        LegalEmployerName          = LC_LEGAL_EMPLOYER  /*Aldar Properties LEGAL EMPLOYER HAS TO BE DERIVED BASED ON BUSINESS UNIT*/
+        SystemPersonType           = 'EMP'
+        ActionCode                 = 'HIRE'
+        LINEREPEATNO=LINEREPEATNO+1
+        LINEREPEAT = 'Y'
+        RETURN BusinessOperation,FileName,FileDiscriminator,SourceSystemOwner,SourceSystemId,"PersonId(SourceSystemId)",EffectiveStartDate,EffectiveEndDate,EffectiveSequence,EffectiveLatestChange,AssignmentName,AssignmentNumber,AssignmentStatusTypeCode,AssignmentType,BusinessUnitShortCode,PositionOverrideFlag,PrimaryWorkTermsFlag,"PeriodOfServiceId(SourceSystemId)",LegalEmployerName,SystemPersonType,ActionCode,LINEREPEATNO,LINEREPEAT
+           )
+
+        IF  LINEREPEATNO=9  THEN
+           (
+        RET = ESS_LOG_WRITE('LINEREPEATNO 11 :' ||TO_CHAR(LINEREPEATNO))  
+        RET = ESS_LOG_WRITE('ORIGINAL LINENO       11 :' ||TO_CHAR(LINENO )) 
+        FileDiscriminator = 'Contract' /*FileDiscriminator*/
+        dummy = ESS_LOG_WRITE('FileDiscriminator after change 11: '||FileDiscriminator)
+	SourceSystemId             = 'LEVER_CONTRACT_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        "PersonId(SourceSystemId)"      = 'LEVER_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        "AssignmentId(SourceSystemId)"  = 'LEVER_WT_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        ContractType  = 'Long Term'
+        AssignmentNumber =  'ET'||LC_TIME 
+        ContractNumber   =   'CONT'||LC_TIME 
+        LINEREPEATNO=LINEREPEATNO+1
+        LINEREPEAT = 'Y'
+        RETURN BusinessOperation,FileName,FileDiscriminator,SourceSystemOwner,SourceSystemId,"PersonId(SourceSystemId)","AssignmentId(SourceSystemId)",ContractType,EffectiveStartDate,AssignmentNumber,ContractNumber,LINEREPEATNO,LINEREPEAT
+           )
+        IF  LINEREPEATNO=10  THEN
+           (
+        RET = ESS_LOG_WRITE('LINEREPEATNO 12 :' ||TO_CHAR(LINEREPEATNO))  
+        RET = ESS_LOG_WRITE('ORIGINAL LINENO       12 :' ||TO_CHAR(LINENO )) 
+        FileDiscriminator = 'Assignment' /*FileDiscriminator*/
+        dummy = ESS_LOG_WRITE('FileDiscriminator after change 12: '||FileDiscriminator)
+	    SourceSystemId             = 'LEVER_ASSIGN_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        ActionCode                 = 'HIRE'
+		EffectiveStartDate         = trim(POSITION11)
+        EffectiveSequence          ='1'
+        EffectiveLatestChange      = 'Y'
+        "WorkTermsAssignmentId(SourceSystemId)" = 'LEVER_WT_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        AssignmentName             = 'E'||LC_TIME   
+        AssignmentNumber           = 'E'||LC_TIME 
+        AssignmentStatusTypeCode   = 'ACTIVE_PROCESS'
+        PersonTypeCode             = 'Employee'
+        BusinessUnitShortCode      = trim(POSITION5)
+        PrimaryAssignmentFlag      = 'Y'
+        JobCode                    = trim(UPPER(SUBSTR(POSITION8,1,30))) 
+       /* "PositionId(SourceSystemId)" ='LEVER_POSITION_' || trim(upper(POSITION9)) 
+        PositionCode              = trim(POSITION25)*/
+	    GradeCode                   = trim(POSITION6)
+		PositionCode        =trim(UPPER(SUBSTR(POSITION9,1,30)))
+	    PositionOverrideFlag        = 'N'
+        AssignmentCategory          = trim(POSITION17)
+        DepartmentName            = trim(POSITION4)
+        WorkTermsNumber           = 'ET'||LC_TIME   
+        "PersonId(SourceSystemId)"      = 'LEVER_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        "PeriodOfServiceId(SourceSystemId)" = 'LEVER_WR_SERVICE_' || trim(upper(POSITION2))||'_'||LC_TIME  /*_2024_05_20'*/
+        DateStart                  = trim(POSITION11)
+		WorkerType                 ='E'
+		
+        LINEREPEATNO=LINEREPEATNO+1
+        LINEREPEAT = 'Y'
+        RETURN BusinessOperation,FileName,FileDiscriminator,SourceSystemOwner,SourceSystemId,ActionCode,EffectiveStartDate,EffectiveSequence,EffectiveLatestChange,"WorkTermsAssignmentId(SourceSystemId)",AssignmentName,AssignmentNumber,AssignmentStatusTypeCode,PersonTypeCode,BusinessUnitShortCode,PrimaryAssignmentFlag,JobCode,GradeCode,PositionCode, PositionOverrideFlag, AssignmentCategory,  DepartmentName, WorkTermsNumber, "PersonId(SourceSystemId)","PeriodOfServiceId(SourceSystemId)",DateStart,WorkerType,LINEREPEATNO,LINEREPEAT
+           )
+
+
+/*METADATA|AssignedPayroll|EffectiveStartDate|AssignmentNumber|PayrollDefinitionCode|LegislativeDataGroupName|StartDate
+MERGE|AssignedPayroll|2019/03/01|E10001|Weekly Payroll|Vision US LDG|2019/03/01
+*/
+/* Need to code based on unit id to default PayrollDefinitionCode
+
+ADRES Payroll
+AIPM Payroll
+Aldar Corporate Payroll
+Aldar Development Payroll
+Aldar Projects Payroll
+C2i Payroll
+Gateway Payroll
+Teyaseer Payroll
+
+*/
+      IF  LINEREPEATNO=11  THEN
+           (
+        FileName = 'AssignedPayroll'
+        RET = ESS_LOG_WRITE('LINEREPEATNO 13 :' ||TO_CHAR(LINEREPEATNO))  
+        RET = ESS_LOG_WRITE('ORIGINAL LINENO       13 :' ||TO_CHAR(LINENO )) 
+        FileDiscriminator = 'AssignedPayroll' /*FileDiscriminator*/
+        dummy = ESS_LOG_WRITE('FileDiscriminator after change 13: '||FileDiscriminator)
+        SourceSystemId   = 'LEVER_ASS_PAYROLL' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        EffectiveStartDate = trim(POSITION11)
+	StartDate          = trim(POSITION11)
+        "AssignmentId(SourceSystemId)"  = 'LEVER_ASSIGN_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+        PayrollDefinitionCode      =  LC_PAYROLL_NAME /*'Aldar Development Payroll' */
+        LegislativeDataGroupName   =  'AE Legislative Data Group'
+
+        LINEREPEATNO=LINEREPEATNO+1
+        LINEREPEAT = 'Y'
+        RETURN BusinessOperation,FileName,FileDiscriminator,SourceSystemOwner,SourceSystemId,EffectiveStartDate,"AssignmentId(SourceSystemId)",PayrollDefinitionCode,LegislativeDataGroupName,StartDate,LINEREPEATNO,LINEREPEAT
+           )
+
+   /*  MERGE|Salary|2024/04/01||38577|N|E465|Aldar Basic Salary|CHANGE_SALARY  */
+
+      IF  LINEREPEATNO=12  THEN
+           (
+        FileName = 'Salary'
+        RET = ESS_LOG_WRITE('LINEREPEATNO 14 :' ||TO_CHAR(LINEREPEATNO))  
+        RET = ESS_LOG_WRITE('ORIGINAL LINENO       14 :' ||TO_CHAR(LINENO )) 
+        FileDiscriminator = 'Salary' /*FileDiscriminator*/
+        dummy = ESS_LOG_WRITE('FileDiscriminator after change 14: '||FileDiscriminator)
+        SourceSystemId   = 'LEVER_SAL_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+	DateFrom         = trim(POSITION11)
+        SalaryAmount = trim(UPPER(POSITION10))
+        MultipleComponents   = 'N'
+        "AssignmentId(SourceSystemId)"  = 'LEVER_ASSIGN_' || trim(upper(POSITION2)) ||'_'||LC_TIME  /*_2024_05_20'*/
+       /* AssignmentNumber           = 'E'||LC_TIME */
+        SalaryBasisName            = 'Aldar Basic Salary'
+        ActionCode                 = 'HIRE'
+        /*LINEREPEATNO=LINEREPEATNO+1*/
+        LINEREPEAT = 'N'
+        RETURN BusinessOperation,FileName,FileDiscriminator,SourceSystemOwner,SourceSystemId,DateFrom,SalaryAmount,MultipleComponents,"AssignmentId(SourceSystemId)",SalaryBasisName,ActionCode,LINEREPEATNO,LINEREPEAT
+           )
+
+    )
+ELSE 
+   OUTPUTVALUE='NONE'
+RETURN OUTPUTVALUE
+/* End Formula Text */

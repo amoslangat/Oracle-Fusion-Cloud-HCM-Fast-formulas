@@ -1,0 +1,47 @@
+/***************************************************************
+Formula Name : School Fee Entitlement Defaulting Formula
+Formula Type : Element Input Validation
+Description  : 
+Author          : Amos Langat
+Date            : 16-Jun-2024
+Last Updated : 
+Version      :           
+***************************************************************/
+
+DEFAULT FOR asg_hr_asg_id         IS  0
+DEFAULT FOR Entitlement_Amount    IS 0
+
+
+
+l_eff_date = GET_CONTEXT(EFFECTIVE_DATE,'0001/01/01 00:00:00' (DATE))
+hr_id      = asg_hr_asg_id
+l_person_id          = TO_CHAR(GET_CONTEXT(PERSON_ID,0))
+
+
+CALL_FORMULA('ALDAR Get HR Data',
+                     hr_id          > 'hr_id',
+				    l_eff_date     > 'eff_date',
+			        'Grade'  > 'mode',
+				    l_grade   < 'l_text'  DEFAULT 'X'
+			    )
+
+l_citizenship = GET_VALUE_SET('ALDAR_EMPLOYEE_CITIZENSHIP','|=P_PERSON_ID='''||l_person_id||'''')
+
+l_emp_citz = replace (l_citizenship,' ','_')
+
+if l_emp_citz = 'United_Arab_Emirates' then
+(
+ 
+ l_citizen = 'NATIONAL'
+
+)
+else
+(
+
+ l_citizen = 'EXPATRIATE'
+ 
+)
+
+Entitlement_Amount = to_number(GET_TABLE_VALUE('ALDAR_SCHOOL_FEE_ELIGIBLE_AMOUNT',l_citizen,l_grade,'0'))
+
+return Entitlement_Amount

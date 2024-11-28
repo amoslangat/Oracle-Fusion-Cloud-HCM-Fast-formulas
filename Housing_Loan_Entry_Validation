@@ -1,0 +1,46 @@
+/*****************************************************************************
+Formula name: Housing Loan Entry Validation
+Formula type: Elment Input Validation
+Description : To validate the employee should submit the next loan if the current loan is in final
+              installment and skip cannot be entered by the employee.
+Author      : Abdulrahman Mohammed
+Date        : 21-Dec-2022
+******************************************************************************/
+DEFAULT FOR asg_hr_asg_id IS 0
+DEFAULT FOR PER_ASG_PAYROLL_INFO_PAYROLL_ASSIGNMENT_ID IS 0
+DEFAULT FOR per_asg_person_id IS 0
+
+l_eff_date     = GET_CONTEXT(EFFECTIVE_DATE, '0001/01/01 00:00:00' (date))
+l_person_id      = TO_CHAR(GET_CONTEXT(PERSON_ID,0))
+l_payroll_assignment_id = TO_CHAR(GET_CONTEXT(PAYROLL_ASSIGNMENT_ID,0))
+l_para         = '1'
+formula_status = 'S'
+l_role         = 'Y'
+l_installment_amount = 0
+l_remaining          = 0
+
+
+l_rem_amount = TO_NUMBER(GET_VALUE_SET('ALDAR_HOUSING_LOAN_REM_AMOUNT','|=P_PAYROLL_ASSIGNMENT_ID='''||l_payroll_assignment_id||''''))
+
+l_amount = TO_NUMBER(GET_VALUE_SET('ALDAR_HOUSING_LOAN_AMOUNT','|=P_PERSON_ID='''||l_person_id||''''||
+	                                                           '|P_PERIOD='''||to_char(l_eff_date,'DD-MM-YYYY')||''''))
+															   
+															   
+l_installments = TO_NUMBER(GET_VALUE_SET('ALDAR_HOUSING_LOAN_INSTALLMENTS','|=P_PERSON_ID='''||l_person_id||''''||
+	                                                           '|P_PERIOD='''||to_char(l_eff_date,'DD-MM-YYYY')||''''))
+															   
+															   
+l_installment_amount = round(l_amount/l_installments)
+
+l_remaining = round(l_rem_amount)
+
+if l_remaining > l_installment_amount then
+(
+  formula_message = 'Employee cannot apply the housing loan unless the previous loan is in last installment,
+                     Remaining amount from the first installment :'+ to_char(l_remaining)+
+                    ' is more than installment amount is :'+ to_char(l_installment_amount )
+                     
+  formula_status = 'E'
+  return formula_message, formula_status
+
+)

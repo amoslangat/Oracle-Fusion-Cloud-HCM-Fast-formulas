@@ -1,0 +1,84 @@
+/***************************************************************
+Formula Name : Other Recurring Payment
+Formula Type : Oracle Payroll
+Description  : Other Recurring Payment Calculation for Regular Month, Termination Month etc.
+Author       : Amos Langat
+Date         : 19-Dec-2022        
+***************************************************************/
+
+Default for pay_earn_period_end is '4712/12/31 00:00:00' (date)
+Default for pay_asg_termination_date is '4712/12/31 00:00:00' (date)  
+
+Default for Amount is 0
+Default for Installments is 0
+Default for Payment_Start_Date is '1951/01/01 00:00:00' (Date)
+Default for Skip is 'N'
+
+Default for ALDAR_OTHER_RECURRING_PAYMENT_ASG_ITD IS 0 /*pay paid Amount */
+
+
+INPUTS ARE Amount , Installments(number), Payment_Start_Date (date), Skip(text)
+		   
+l_tot_payment_amount     = Amount
+l_installments           = Installments
+l_pay_s_date             = Payment_Start_Date
+l_skip                   = Skip
+l_eff_date               = LEAST(pay_asg_termination_date,pay_earn_period_end)
+
+l_pay_amt		 = 0	
+
+formula_name		 = '[ALDAR Other Recurring Payment]'	   
+
+l_recovered_amount = ALDAR_OTHER_RECURRING_PAYMENT_ASG_ITD /* pay Amount Paid */
+
+l_installment_amt = round (l_tot_payment_amount / l_installments,2)  /* Installment Amount */
+
+l_pay_amt_left = l_tot_payment_amount - l_recovered_amount   /* pay Amount Left to be paid */
+
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' pay Amount Paid: '||TO_CHAR(l_recovered_amount))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' pay Installment Amount: '||TO_CHAR(l_installment_amt))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' pay Amount Left: '||TO_CHAR(l_pay_amt_left))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Skip flag: '||l_skip)
+
+IF ((pay_earn_period_end < l_pay_s_date AND l_eff_date <> pay_asg_termination_date) OR (l_pay_amt_left = 0) OR (l_skip = 'Y')) THEN
+(
+	l_pay_amt = 0
+	l_log = PAY_INTERNAL_LOG_WRITE('Payment of pay will be not done this month due to either skip as '||l_skip||'or future dated start date payment i.e. '|| TO_CHAR(l_pay_s_date))
+)
+ELSE IF (l_pay_amt_left > 0) THEN    
+(
+	IF (l_eff_date <> pay_asg_termination_date) THEN
+	(
+		l_pay_amt = LEAST(l_installment_amt, l_pay_amt_left)
+		l_rem = l_tot_payment_amount - l_recovered_amount - l_pay_amt
+		l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Remainder Amount is: '||TO_CHAR(l_rem))
+        if l_rem < 1 then
+        (
+         l_pay_amt = l_pay_amt + l_rem
+        )
+		l_recovered_amount = l_recovered_amount + l_pay_amt
+	)
+	ELSE  /*Termination Case*/
+	(
+		l_pay_amt = l_pay_amt_left
+		l_recovered_amount = l_recovered_amount + l_pay_amt
+		l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' pay Amount recovered till Termination: '||TO_CHAR(l_recovered_amount))
+		l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' pay Amount left to pay during Termination: '||TO_CHAR(l_pay_amt))
+	)
+	
+)	   
+	
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Payment Amount: '||TO_CHAR(l_pay_amt))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Recovered Amount: '||TO_CHAR(l_recovered_amount))	
+
+IF l_tot_payment_amount = l_recovered_amount THEN
+(
+	l_stop_pay    = 1
+	l_adj_pay_amt = l_recovered_amount * -1
+	RETURN l_pay_amt, l_stop_pay, l_adj_pay_amt
+
+)
+ELSE
+(
+	RETURN l_pay_amt
+)

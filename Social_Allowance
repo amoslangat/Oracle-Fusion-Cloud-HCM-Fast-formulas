@@ -1,0 +1,133 @@
+/***************************************************************
+Formula Name : Social Allowance
+Formula Type : Oracle Payroll
+Description  :
+Author          : Amos Langat
+Date            : 16-Jun-2024
+Last Updated : 
+Version      :           
+***************************************************************/
+
+/** DATABASE ITEMS DEFAULT VALUES START **/
+DEFAULT FOR pay_earn_period_start     IS '1951/01/01 00:00:00' (DATE)
+DEFAULT FOR pay_earn_period_end       IS '4712/12/31 00:00:00' (DATE)
+DEFAULT FOR pay_asg_hire_date         IS '1951/01/01 00:00:00' (DATE)
+DEFAULT FOR pay_asg_termination_date  IS '4712/12/31 00:00:00' (DATE)
+DEFAULT FOR prorate_start             IS '1951/01/01 00:00:00' (DATE)
+DEFAULT FOR prorate_end               IS '4712/12/31 00:00:00' (DATE)
+DEFAULT FOR Social_Allowance_ASG_ITD                  IS 0
+DEFAULT FOR Social_Allowance_RETROACTIVE_ASG_ITD      IS 0
+DEFAULT FOR ALDAR_LATE_HIRE_ARREAR_ADJUSTMENT_ASG_ITD IS 0
+/** DATABASE ITEMS DEFAULT VALUES END **/
+
+
+/** INPUT VALUES BEGIN **/
+Inputs are prorate_start (date),
+		   prorate_end (date)
+/** INPUT VALUES END **/
+
+
+/** LOCAL VARIABLES BEGIN **/
+l_cal_days            = DAYS_BETWEEN(pay_earn_period_end, pay_earn_period_start) + 1
+l_start_date          = GREATEST(pay_earn_period_start,pay_asg_hire_date,prorate_start)
+l_end_date            = LEAST(pay_earn_period_end,pay_asg_termination_date,prorate_end)
+l_tot_days            = DAYS_BETWEEN(l_end_date,l_start_date) + 1
+l_start      = GREATEST(pay_asg_hire_date,element_entry_start_date)
+l_value               = 0
+l_amount              = 0
+l_arrear     = 0
+formula_name          = '[ALDAR Social Allowance]'
+/** LOCAL VARIABLES END **/
+
+
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Calendar Days : '||TO_CHAR(l_cal_days))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Total Days    : '||TO_CHAR(l_tot_days))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Prorate Start : '||TO_CHAR(prorate_start,'DD-MM-YYYY'))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Prorate End   : '||TO_CHAR(prorate_end,'DD-MM-YYYY'))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Start Date    : '||TO_CHAR(l_start_date,'DD-MM-YYYY'))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' End Date      : '||TO_CHAR(l_end_date,'DD-MM-YYYY'))
+
+
+l_amount = to_number(GET_TABLE_VALUE('ALDAR_SOCIAL_ALLOWANCE_AMOUNT','Social_Allowance','Amount','0'))
+
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Amount     : '||TO_CHAR(l_amount))
+
+l_value  = round((l_amount/l_cal_days) * l_tot_days,3)
+
+
+if ((prorate_start was not defaulted or prorate_end was not defaulted) and ((last_day(prorate_start) = last_day(pay_asg_hire_date) and pay_asg_hire_Date <> pay_earn_period_start) 
+or (last_day(prorate_end) = last_day(pay_asg_termination_date) and pay_asg_termination_date <> pay_earn_period_end))) then
+(
+
+  l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Entering Proration Loop')
+  l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Proration month' || to_char(prorate_start,'MM'))
+
+if to_char(prorate_start,'MM') = '02' then
+    (   
+	
+	l_log = PAY_INTERNAL_LOG_WRITE('Entering loop if proration month is feb')
+	
+     l_value  = round((l_amount/l_cal_days) * l_tot_days,3)
+	 
+    )
+	else
+	(
+	
+	 l_log = PAY_INTERNAL_LOG_WRITE('Entering loop if proration month other than feb')
+	
+     l_value  = round((l_amount/30) * l_tot_days,3)
+	
+	)
+
+)
+
+l_value = round(l_value)
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Pay Value     : '||TO_CHAR(l_value))
+
+/* ================== Arrear Loop Start ================== */
+
+l_balance = Social_Allowance_ASG_ITD + Social_Allowance_RETROACTIVE_ASG_ITD + ALDAR_LATE_HIRE_ARREAR_ADJUSTMENT_ASG_ITD
+
+if l_balance  = 0  and l_start < pay_earn_period_start then
+(
+ 
+  l_log = pay_internal_log_write(formula_name||'Arrear Start Date : '||to_char(l_start))
+  l_log = pay_internal_log_write(formula_name||'Previous Balance : '||to_char(l_balance))
+
+  l_m = trunc(months_between(pay_earn_period_start,l_start))
+  if to_char(pay_earn_period_start,'dd') = to_char(l_start,'dd') then 
+  (
+   l_m = l_m - 1
+  )
+  l_log = pay_internal_log_write(formula_name||'Arrear Months: '||to_char(l_m))
+  
+  l_days = days_between(trunc(add_months(l_start,1),'MM'),l_start)
+  l_log = pay_internal_log_write(formula_name||'Arrear Pay Days in hire month: '||to_char(l_days))
+ while l_m >= 0 loop
+ (
+ if l_arrear = 0  then (
+ if to_char(l_start,'MM') = '02' then
+ (
+ l_calender_days = days_between(last_day(l_start),trunc(l_start,'MM'))+1
+ )
+ ELSE
+ (
+ l_calender_days = 30
+ ))
+ if to_char(pay_earn_period_start,'dd') = to_char(l_start,'dd') THEN
+ (
+  l_days = 1
+ l_calender_days = 1
+ )
+ l_arrear = l_arrear + round(l_days/l_calender_days* l_amount ,3)
+ l_days = 1
+ l_calender_days = 1
+ l_m = l_m - 1
+ )
+ l_arrear = round(l_arrear)
+ l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Arrears Value     : '||TO_CHAR(l_arrear))
+ return l_arrear,l_value,l_amount
+)
+/* ================== Arrear Loop End ================== */
+
+return l_value, l_amount

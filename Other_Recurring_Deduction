@@ -1,0 +1,87 @@
+/***************************************************************
+Formula Name : Other Recurring Deduction
+Formula Type : Oracle Payroll
+Description  : Other Recurring Deduction Calculation for Regular Month, Termination Month etc.
+Author       : Amos Langat
+Date         : 19-Dec-2022        
+***************************************************************/
+
+Default for pay_earn_period_end is '4712/12/31 00:00:00' (date)
+Default for pay_asg_termination_date is '4712/12/31 00:00:00' (date)  
+
+Default for Amount is 0
+Default for Installments is 0
+Default for Deduction_Start_Date is '1951/01/01 00:00:00' (Date)
+Default for Skip is 'N'
+
+Default for ALDAR_OTHER_RECURRING_DEDUCTION_ASG_ITD IS 0 /*Deducted Amount */
+
+
+INPUTS ARE Amount , Installments(number), Deduction_Start_Date (date), Skip(text)
+		   
+l_tot_deduction_amount   = Amount
+l_installments           = Installments
+l_ded_s_date             = Deduction_Start_Date
+l_skip                   = Skip
+l_eff_date               = LEAST(pay_asg_termination_date,pay_earn_period_end)
+
+l_ded_amt		 = 0	
+
+formula_name		 = '[ALDAR Other Recurring Deduction]'	   
+
+l_recovered_amount = ALDAR_OTHER_RECURRING_DEDUCTION_ASG_ITD /*Amount Recovered*/
+
+l_installment_amt = round (l_tot_deduction_amount / l_installments,2)  /* Installment Amount */
+
+l_ded_amt_left = l_tot_deduction_amount - l_recovered_amount   /* Amount Left to be deducted */
+
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Deduction Amount Recovered: '||TO_CHAR(l_recovered_amount))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Deduction Installment Amount: '||TO_CHAR(l_installment_amt))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Deduction Amount Left: '||TO_CHAR(l_ded_amt_left))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Skip flag: '||l_skip)
+
+IF ((pay_earn_period_end < l_ded_s_date AND l_eff_date <> pay_asg_termination_date) OR (l_ded_amt_left = 0) OR (l_skip = 'Y')) THEN
+(
+	l_ded_amt = 0
+	l_log = PAY_INTERNAL_LOG_WRITE('Deduction will be not done this month due to either skip as '||l_skip||'or future dated start date payment i.e. '|| TO_CHAR(l_ded_s_date))
+)
+ELSE IF (l_ded_amt_left > 0) THEN    
+(
+	IF (l_eff_date <> pay_asg_termination_date) THEN
+	(   
+		
+		l_ded_amt = LEAST(l_installment_amt, l_ded_amt_left)
+		l_rem = l_tot_deduction_amount - l_recovered_amount - l_ded_amt
+		l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Remainder Amount is: '||TO_CHAR(l_rem))
+        if l_rem < 1 then
+        (
+         l_ded_amt = l_ded_amt + l_rem
+        )
+		l_recovered_amount = l_recovered_amount + l_ded_amt
+	)
+	ELSE  /*Termination Case*/
+	(
+	    
+		l_ded_amt = l_ded_amt_left
+		l_recovered_amount = l_recovered_amount + l_ded_amt
+		l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Deduction Amount recovered till Termination: '||TO_CHAR(l_recovered_amount))
+		l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Deduction Amount left to pay during Termination: '||TO_CHAR(l_ded_amt))
+	)
+	
+)	   
+
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Deduction Amount: '||TO_CHAR(l_ded_amt))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Recovered Amount: '||TO_CHAR(l_recovered_amount))	
+
+
+IF l_tot_deduction_amount = l_recovered_amount THEN
+(
+	l_stop_ded    = 1
+	l_adj_ded_amt = l_recovered_amount * -1
+	
+	RETURN l_ded_amt, l_stop_ded, l_adj_ded_amt
+)
+ELSE
+(
+	RETURN l_ded_amt
+)

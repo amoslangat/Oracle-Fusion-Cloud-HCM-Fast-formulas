@@ -1,0 +1,18 @@
+/***************************************************************
+Formula Name : KAZ Recovery
+Formula Type : Oracle Payroll
+Description  : Other Recurring Deduction Calculation
+Author       : Amos Langat
+Date         : 19-Dec-2022        
+***************************************************************/
+default for Amount is 0
+
+inputs are Amount
+
+l_value = Amount
+
+formula_name = '[ALDAR KAZ Recovery]'
+
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Amount Deducted: '||TO_CHAR(l_value))
+    
+return l_value

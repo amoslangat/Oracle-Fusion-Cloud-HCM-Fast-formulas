@@ -1,0 +1,409 @@
+/*
+****************************************************************************************************
+ Formula Name   : Maternity Remote Working Entry Validation
+ Formula Type   : Global Absence Entry Validation
+
+ Description    : 	
+					
+					•	Female employees are eligible for work from home for a consecutive period of 30 working days following their maternity leave.
+					•	30 working days of Maternity Remote working days will be on top of regular annual remote working days.
+					•	There should a gap of 12 months between each Maternity Remote Working.
+
+					C2i
+					• 	Female employees are eligible for work from home for 30 working days following their maternity leave.
+					• 	These 30 days should be used within a year after the Maternity Leave End Date.
+					•	30 working days of Maternity Remote working days will be on top of regular annual remote working days.
+					•	There should a gap of 12 months between each Maternity Remote Working.
+ Author         : NALSOFT
+ Creation date  : 03-Jan-2023
+ Last update on : 08-Dec-2023
+*******************************************************************************************************/ 
+
+DEFAULT_DATA_VALUE FOR anc_per_abs_entrs_absence_entry_id_arr IS 0
+
+DEFAULT FOR ACP_HIRE_DATE                     IS '1951/01/01 00:00:00' (date)
+DEFAULT FOR anc_abs_entrs_start_date          IS '4712/12/31 00:00:00' (date)
+DEFAULT FOR anc_abs_entrs_end_date            IS '4712/12/31 00:00:00' (date)
+DEFAULT FOR anc_abs_entrs_absence_status_cd   IS ' '
+DEFAULT FOR anc_abs_entrs_approval_status_cd  IS ' '
+DEFAULT FOR anc_abs_typ_name                  IS ' '
+DEFAULT FOR anc_abs_entrs_duration            IS 0
+DEFAULT FOR anc_abs_entrs_start_date_duration IS 0
+DEFAULT FOR anc_abs_entrs_end_date_duration   IS 0
+DEFAULT FOR anc_abs_entrs_absence_type_id     IS 0
+DEFAULT FOR asg_hr_asg_id                IS 0
+DEFAULT FOR ANC_ABS_ENTRS_ATTRIBUTE_DATE1     IS '1951/01/01 00:00:00' (date)
+
+INPUTS ARE iv_end_date       (date), 
+           iv_start_date     (date), 
+		   iv_totalduration  (number),
+			IV_ATTRIBUTE_DATE1 (date)
+
+l_leave       =  'Maternity Remote Working'
+valid         =  'Y'
+l_date        =  TRUNC(GET_CONTEXT(EFFECTIVE_DATE,'4712/12/31 00:00:00' (date)))
+l_months      = add_months(ACP_HIRE_DATE,3)
+l_ab_start    =  TRUNC(iv_start_date)
+l_ab_end      =  TRUNC(iv_end_date)
+prd_start     =  TO_DATE('1951-01-01','yyyy-MM-dd')
+prd_end       =  TO_DATE('4712-12-31','yyyy-MM-dd')
+l_last_end_date = TO_DATE('1951-01-01','yyyy-MM-dd')
+l_ab_id       =  GET_CONTEXT(ABSENCE_TYPE_ID,0)
+l_start       =  TRUNC(l_date,'yyyy')
+l_end         =  ADD_DAYS(ADD_MONTHS(l_start,12),-1)
+l_duration    =  0
+i             =  1
+l_next_year_duration = 0
+l_between_duration = 0
+l_bet_days   = 0
+
+l_abs_entry_id = GET_CONTEXT(ABSENCE_ENTRY_ID, 0)
+l_maternity_leave_exists = 'N'
+
+
+
+l_abs_type_id = TO_NUMBER(GET_VALUE_SET('ALDAR_GET_ABSENCE_TYPE_ID','|=P_LEAVE_TYPE='''||'Maternity Leave'||''''))
+l_abs_type_id_1 = TO_NUMBER(GET_VALUE_SET('ALDAR_GET_ABSENCE_TYPE_ID','|=P_LEAVE_TYPE='''||'Maternity Remote Working'||''''))
+
+
+CALL_FORMULA('ALDAR GET HR DATA',
+                 asg_hr_asg_id               > 'hr_id',
+                  l_date           > 'eff_date',
+                 'Business Unit' 		 > 'mode',
+                 l_Business_unit             < 'l_text'  DEFAULT 'X'
+            )
+
+l_CAL_MODE = GET_TABLE_VALUE('ALDAR_BUSINESS_UNIT_ELIGIBILITY','Eligibility',l_Business_unit,'0')
+
+
+if(l_CAL_MODE = 'ALDAR')then(	
+
+
+		IF iv_totalduration > 30 THEN
+		(
+			valid = 'N'
+			error_message  = 'ALDAR_MTRL_REMT_ERR1' /* Employee can only avail {MAX_DURATION} days of Maternity Remote Working. */
+			token_name[1]  = 'MAX_DURATION'
+			token_value[1] = '30'
+
+			RETURN valid, error_message, token_name, token_value
+		)
+
+
+		CHANGE_CONTEXTS(START_DATE = l_start, END_DATE = l_end)
+		(
+			WHILE anc_per_abs_entrs_absence_entry_id_arr.EXISTS(i) LOOP
+			(
+				CHANGE_CONTEXTS(ABSENCE_ENTRY_ID = anc_per_abs_entrs_absence_entry_id_arr[i])
+				(
+					IF (((anc_abs_entrs_absence_status_cd = 'SUBMITTED' AND anc_abs_entrs_approval_status_cd = 'APPROVED') OR
+						(anc_abs_entrs_absence_status_cd = 'ORA_WITHDRAWN' AND anc_abs_entrs_approval_status_cd = 'ORA_AWAIT_AWAIT')) AND
+						 anc_abs_entrs_approval_status_cd <> 'DENIED' AND
+						 anc_per_abs_entrs_absence_entry_id_arr[i] <> l_abs_entry_id AND anc_abs_entrs_absence_type_id = l_abs_type_id /*Maternity Leave*/)  THEN
+					(	
+
+
+
+
+						/** If maternity remote working is applied following day of maternity end date **/							   
+						IF trunc(anc_abs_entrs_end_date) = trunc(ADD_DAYS(iv_start_date,-1)) THEN
+						(
+							l_maternity_leave_exists = 'Y'
+
+						)
+
+						/** if maternity remote working is not applied following day of maternity end date */
+
+						/** Checking for the work off days or public holidays == starts */
+						else if trunc(anc_abs_entrs_end_date) <> trunc(ADD_DAYS(iv_start_date,-1)) THEN
+
+						(
+
+						 l_bet_days = days_between(trunc(iv_start_date),trunc(anc_abs_entrs_end_date)) - 1
+
+							j=1
+
+							 l_absence_date = add_days(anc_abs_entrs_end_date,1)
+
+							while j <= l_bet_days loop
+							(
+
+
+
+							 l_start_time = to_date(to_char(l_absence_date,'DD/MM/RRRR')||' 00:00:00','DD/MM/RRRR HH24:MI:SS')
+							 l_end_time   = to_date(to_char(l_absence_date,'DD/MM/RRRR')||' 23:59:59','DD/MM/RRRR HH24:MI:SS')
+
+							 l_day_duration = GET_PAY_AVAILABILITY ('ASSIGN',
+													   l_start_time,
+													   l_end_time,
+													   'Y','Y','Y','Y','H')
+
+							 l_between_duration = l_between_duration + l_day_duration
+
+
+
+							 j = j+1
+							 l_absence_date = add_days(anc_abs_entrs_end_date,j)
+
+							)
+
+							if l_between_duration = 0 then
+							(
+
+							 l_maternity_leave_exists = 'Y'
+
+							)
+
+						/** Checking for the work off days or public holidays == ends */	
+						)
+
+						  if anc_abs_entrs_end_date > iv_start_date then
+						   (
+
+							   l_maternity_leave_exists = 'N'
+							)				
+					)
+				)
+
+				i = i + 1
+			)
+		)
+
+		/* Maternity Leave Check Ends */
+
+
+
+
+		IF l_maternity_leave_exists = 'NN'  THEN
+		(
+			valid = 'N'
+			error_message = 'ALDAR_MTRL_REMT_ERR2' /*Employee should avail Maternity Remote Working immediately after the Completion of Maternity Leave.*/
+			token_name[1]  = 'VALUE'
+			token_value[1] = 'Maternity Remote Working'
+
+			RETURN valid, error_message, token_name, token_value
+		)
+
+		k= 1
+
+
+		CHANGE_CONTEXTS(START_DATE = l_start, END_DATE = l_end)
+		(
+			WHILE anc_per_abs_entrs_absence_entry_id_arr.EXISTS(k) LOOP
+			(
+				CHANGE_CONTEXTS(ABSENCE_ENTRY_ID = anc_per_abs_entrs_absence_entry_id_arr[k])
+				(
+					IF (((anc_abs_entrs_absence_status_cd = 'SUBMITTED' AND anc_abs_entrs_approval_status_cd = 'APPROVED') OR
+						(anc_abs_entrs_absence_status_cd = 'ORA_WITHDRAWN' AND anc_abs_entrs_approval_status_cd = 'ORA_AWAIT_AWAIT')) AND
+						 anc_abs_entrs_approval_status_cd <> 'DENIED' AND
+						 anc_per_abs_entrs_absence_entry_id_arr[k] <> l_abs_entry_id AND anc_abs_entrs_absence_type_id = l_abs_type_id_1 /*Maternity Remote Working*/)  THEN
+					(	
+
+					  l_last_end_date = anc_abs_entrs_end_date
+
+					)
+				)
+
+				k = k + 1
+			)
+		)
+
+		l_12_months = add_months(l_last_end_date,12)
+
+
+		IF  l_12_months > iv_start_date THEN
+		(
+			valid = 'N' 
+			error_message = 'ALDAR_MTRL_REMT_ERR3' /* Employee can avail Maternity Remote Working after 12 months of previous Maternity Remote Working.*/
+
+			RETURN valid, error_message
+		)
+
+
+		RETURN valid
+)
+
+if(l_CAL_MODE = 'C2I')then(	
+		
+		l_start       =  add_months(iv_start_date,-13)
+		l_end         =  iv_end_date
+		
+		
+		l_tot_mat_remote = 0
+		l_mat_end_date  = TO_DATE('1951-01-01','yyyy-MM-dd')
+		
+				IF iv_totalduration > 30 THEN
+		(
+			valid = 'N'
+			error_message  = 'ALDAR_MTRL_REMT_ERR1' /* Employee can only avail {MAX_DURATION} days of Maternity Remote Working. */
+			token_name[1]  = 'MAX_DURATION'
+			token_value[1] = '30'
+
+			RETURN valid, error_message, token_name, token_value
+		)
+
+
+		CHANGE_CONTEXTS(START_DATE = l_start, END_DATE = l_end)
+		(
+			WHILE anc_per_abs_entrs_absence_entry_id_arr.EXISTS(i) LOOP
+			(
+				CHANGE_CONTEXTS(ABSENCE_ENTRY_ID = anc_per_abs_entrs_absence_entry_id_arr[i])
+				(
+					IF (((anc_abs_entrs_absence_status_cd = 'SUBMITTED' AND anc_abs_entrs_approval_status_cd = 'APPROVED') OR
+						(anc_abs_entrs_absence_status_cd = 'ORA_WITHDRAWN' AND anc_abs_entrs_approval_status_cd = 'ORA_AWAIT_AWAIT')) AND
+						 anc_abs_entrs_approval_status_cd <> 'DENIED' AND
+						 anc_per_abs_entrs_absence_entry_id_arr[i] <> l_abs_entry_id AND anc_abs_entrs_absence_type_id = l_abs_type_id /*Maternity Leave*/)  THEN
+					(	
+
+
+
+
+						/** If maternity remote working is applied following day of maternity end date **/							   
+						IF trunc(anc_abs_entrs_end_date) = trunc(ADD_DAYS(iv_start_date,-1)) THEN
+						(
+							l_maternity_leave_exists = 'Y'
+
+						)
+
+						/** if maternity remote working is not applied following day of maternity end date */
+
+						/** Checking for the work off days or public holidays == starts */
+						else if trunc(anc_abs_entrs_end_date) <> trunc(ADD_DAYS(iv_start_date,-1)) THEN
+
+						(
+
+						 l_bet_days = days_between(trunc(iv_start_date),trunc(anc_abs_entrs_end_date)) - 1
+
+							j=1
+
+							 l_absence_date = add_days(anc_abs_entrs_end_date,1)
+
+							while j <= l_bet_days loop
+							(
+
+
+
+							 l_start_time = to_date(to_char(l_absence_date,'DD/MM/RRRR')||' 00:00:00','DD/MM/RRRR HH24:MI:SS')
+							 l_end_time   = to_date(to_char(l_absence_date,'DD/MM/RRRR')||' 23:59:59','DD/MM/RRRR HH24:MI:SS')
+
+							 l_day_duration = GET_PAY_AVAILABILITY ('ASSIGN',
+													   l_start_time,
+													   l_end_time,
+													   'Y','Y','Y','Y','H')
+
+							 l_between_duration = l_between_duration + l_day_duration
+
+
+							 j = j+1
+							 l_absence_date = add_days(anc_abs_entrs_end_date,j)
+
+							)
+
+							if l_between_duration = 0 then
+							(
+
+							 l_maternity_leave_exists = 'Y'
+
+							)
+
+						/** Checking for the work off days or public holidays == ends */	
+						)
+
+						  if anc_abs_entrs_end_date > iv_start_date then
+						   (
+
+							   l_maternity_leave_exists = 'N'
+							)
+							
+							l_mat_end_date = anc_abs_entrs_end_date
+
+
+					)
+				)
+
+				i = i + 1
+			)
+		)
+
+		/* Maternity Leave Check Ends */
+
+
+
+		k= 1
+
+
+		CHANGE_CONTEXTS(START_DATE = l_start, END_DATE = l_end)
+		(
+			WHILE anc_per_abs_entrs_absence_entry_id_arr.EXISTS(k) LOOP
+			(
+				CHANGE_CONTEXTS(ABSENCE_ENTRY_ID = anc_per_abs_entrs_absence_entry_id_arr[k])
+				(
+					IF (((anc_abs_entrs_absence_status_cd = 'SUBMITTED' AND anc_abs_entrs_approval_status_cd = 'APPROVED') OR
+						(anc_abs_entrs_absence_status_cd = 'ORA_WITHDRAWN' AND anc_abs_entrs_approval_status_cd = 'ORA_AWAIT_AWAIT')) AND
+						 anc_abs_entrs_approval_status_cd <> 'DENIED' AND
+						 anc_per_abs_entrs_absence_entry_id_arr[k] <> l_abs_entry_id AND anc_abs_entrs_absence_type_id = l_abs_type_id_1 /*Maternity Remote Working*/)  THEN
+					(	
+
+					  l_last_end_date = anc_abs_entrs_end_date
+
+						/*C2I update start*/
+
+						if(ANC_ABS_ENTRS_ATTRIBUTE_DATE1 = IV_ATTRIBUTE_DATE1)then(
+								l_tot_mat_remote = anc_abs_entrs_duration + l_tot_mat_remote
+							)
+						/*C2I update end*/
+					)
+				)
+
+				k = k + 1
+			)
+		)
+		
+		IF (l_maternity_leave_exists = 'N') and (l_tot_mat_remote = 0)  THEN
+		(
+			valid = 'N'
+			error_message = 'ALDAR_MTRL_REMT_ERR2' /*Employee should avail Maternity Remote Working immediately after the Completion of Maternity Leave.*/
+			token_name[1]  = 'VALUE'
+			token_value[1] = 'Maternity Remote Working'
+
+			RETURN valid, error_message, token_name, token_value
+		)
+
+		CALL_FORMULA('ALDAR GET HR DATA',
+						 asg_hr_asg_id               > 'hr_id',
+						  l_date           > 'eff_date',
+						 'Business Unit' 		 > 'mode',
+						 l_Business_unit             < 'l_text'  DEFAULT 'X'
+					)
+
+		l_CAL_MODE = GET_TABLE_VALUE('ALDAR_BUSINESS_UNIT_ELIGIBILITY','Eligibility',l_Business_unit,'0')
+		
+
+		l_12_months = add_months(l_last_end_date,12)
+		l_mat_end_12_months = add_months(l_mat_end_date,12)
+
+
+
+			IF( l_mat_end_12_months < iv_end_date) and (l_mat_end_date <> TO_DATE('1951-01-01','yyyy-MM-dd'))  THEN
+			(
+				valid = 'N' 
+
+
+				/*error_message = 'ALDAR_MTRL_REMT_ERR3'  /*Employee can avail Maternity Remote Working after 12 months of previous Maternity Remote Working.*/
+				error_message = to_char(l_mat_end_date)
+				RETURN valid, error_message
+			)
+			IF(l_tot_mat_remote + iv_totalduration > 30 )THEN
+			(	
+				l_rem_bal = to_char(30 - l_tot_mat_remote)
+				valid = 'N'
+				error_message  = 'ALDAR_MTRL_REMT_ERR4' /* Employee can only avail l_rem_bal days of Maternity Remote Working. */
+				token_name[1]  = 'BAL'
+				token_value[1] = l_rem_bal
+				RETURN valid, error_message, token_name, token_value
+			)
+
+			RETURN valid
+
+					
+)

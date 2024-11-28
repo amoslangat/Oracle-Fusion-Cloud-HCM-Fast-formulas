@@ -1,0 +1,38 @@
+/* 
+*******************************************************************************************************
+ FORmula Name   : Remote Working Eligibility
+ FORmula Type   : Participation and Rate Eligibility
+ LDG            : AE Legislative Data Group
+ 
+ Description    : 1. Checks the remote working field(employment page Field), if it is yes then this formula will allows requestor to awail remote working. And this is only applicable for C2i Employees
+Author          : Amos Langat
+Date            : 16-Jun-2024
+ Last update on : 
+
+*******************************************************************************************************/
+
+DEFAULT FOR PER_ASG_WORK_AT_HOME IS 'XX' 
+DEFAULT FOR PER_ASG_BUSINESS_UNIT_NAME IS 'XX'
+
+L_EFF_DATE	=	GET_CONTEXT(EFFECTIVE_DATE,'0001/01/01 00:00:00' (DATE)) 
+l_BU		= PER_ASG_BUSINESS_UNIT_NAME
+l_WFH 		= PER_ASG_WORK_AT_HOME
+ELIGIBLE 	= 'Y'
+
+l_CAL_MODE = GET_TABLE_VALUE('ALDAR_BUSINESS_UNIT_ELIGIBILITY','Eligibility',l_BU,'0')
+
+
+
+if(l_CAL_MODE = 'C2I')then(
+	if l_WFH = 'N' then
+	(
+	ELIGIBLE = 'N'
+	)
+
+	else
+	(
+	ELIGIBLE = 'Y'
+	)
+)
+
+RETURN ELIGIBLE

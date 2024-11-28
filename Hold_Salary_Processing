@@ -1,0 +1,74 @@
+/*****************************************************************************
+Formula name: Hold salary processing
+Formula type: Oracle payroll
+Description:
+Author: Amos Langat
+Date: 27-Aug-19
+******************************************************************************/
+default for pay_asg_termination_date is '4712/12/31 00:00:00' (date) 
+default for pay_earn_period_start  is '0001/01/01 00:00:00' (date)
+default for pay_earn_period_end is '4712/12/31 00:00:00' (date)
+default for ALDAR_HOLD_SALARY_ASG_ITD is 0
+default for hold_amount is 0
+default for release_amount is 0
+default for net_pay_rel_run is 0
+default_data_value for employee_social_insurance_details_dir_card_dir_card_id is -1
+
+inputs are hold_flag (text), release_flag (text), hold_amount, release_amount
+
+l_net_run				= net_pay_asg_run
+l_rel_sal				= ALDAR_HOLD_SALARY_ASG_ITD
+l_hold_override_amt		= hold_amount
+l_release_override_amt	= release_amount
+calc_breakdown_id_1		= employee_social_insurance_details_dir_card_dir_card_id[1]
+l_period = 'Standard Rate Daily'
+
+change_contexts(CALC_BREAKDOWN_ID = calc_breakdown_id_1)
+(
+	l_net_run				= net_pay_rel_run
+)
+l_log = pay_internal_log_write('(hold_salary_processing_calc) l_net_run : '||to_char(l_net_run))
+l_log = pay_internal_log_write('(hold_salary_processing_calc) l_rel_sal : '||to_char(l_rel_sal))
+if release_amount was not defaulted then
+(
+	l_rel_sal				= least(ALDAR_HOLD_SALARY_ASG_ITD, l_release_override_amt)
+)
+
+if hold_flag = 'Y' then 
+(
+	if hold_amount was not defaulted then
+	(
+		l_hold_sal = least(l_net_run, l_hold_override_amt) 
+	)
+	else
+	(
+		l_hold_sal = l_net_run
+	)
+	
+	if release_flag = 'Y' and l_rel_sal <> 0 then
+	(
+		l_hold_sal = least(l_hold_sal + l_rel_sal, l_hold_override_amt)
+		if l_hold_sal > 0 then 
+		(
+			msg = 'Held salary of ' + to_char (l_rel_sal) + ' is released; employee salary is held for this month of amount ' + to_char (l_hold_sal)
+			return l_hold_sal, l_rel_sal, msg, l_period 
+		)
+		else
+		(
+			msg = 'Held salary of ' + to_char (l_rel_sal) + ' is released'
+			return l_rel_sal, msg, l_period
+		)
+	)
+	
+	if l_hold_sal > 0 then 
+	(
+		msg = 'Employee salary is held for this month of amount ' + to_char (l_hold_sal)
+		return l_hold_sal, msg 
+	)
+)
+
+if release_flag = 'Y' and l_rel_sal <> 0 then
+(
+	msg = 'Held salary is released'
+	return l_rel_sal, msg, l_period
+)

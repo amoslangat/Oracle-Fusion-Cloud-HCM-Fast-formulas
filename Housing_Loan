@@ -1,0 +1,160 @@
+/*****************************************************************************
+Formula name: Housing Loan
+Formula type: Oracle payroll
+Description : The payment of the entered amount and deduction according to the no.of installements
+              and employee can apply the loan a month before the completion of previous loan
+Author      : Amos Langat
+Date        : 21-Dec-2022
+******************************************************************************/
+
+DEFAULT FOR Housing_Loan_Amount  is 0
+DEFAULT FOR Deduction_Start_Date is '1951/01/01 00:00:00' (date)
+DEFAULT FOR Installments         is 0
+DEFAULT FOR HOUSING_LOAN_SKIP_SKIP_ASG_ENTRY_VALUE                 is 'N'
+DEFAULT FOR ALDAR_HOUSING_LOAN_REL_RC_ITD is 0
+DEFAULT FOR PAY_ASG_TERMINATION_DATE is '4712/12/31 00:00:00' (date)
+DEFAULT FOR PAY_EARN_PERIOD_END IS '4712/12/31 00:00:00' (date)
+DEFAULT FOR PAY_EARN_PERIOD_START IS '1951/01/01 00:00:00' (Date)
+DEFAULT FOR ELEMENT_ENTRY_START_DATE IS '1951/01/01 00:00:00' (Date)
+DEFAULT FOR HOUSING_LOAN_ADJUSTMENT_AMOUNT_ASG_ENTRY_VALUE IS 0
+DEFAULT FOR HOUSING_LOAN_OPENING_BALANCE_AMOUNT_ASG_ENTRY_VALUE IS 0
+default_data_value for employee_social_insurance_details_dir_card_dir_card_id is -1
+
+
+Inputs are Housing_Loan_Amount,
+           Deduction_Start_Date (date),
+		   Installments
+		   
+/** LOCAL VARIABLES BEGIN **/
+l_end_date        = LEAST (PAY_EARN_PERIOD_END, PAY_ASG_TERMINATION_DATE)
+l_pay_value       = 0
+l_amount          = 0
+l_payment         = 0
+l_adj_amount      = 0
+l_net_run         = 0
+l_inst_amount     = 0
+l_balance_add     = 0
+l_adjus_amount    = HOUSING_LOAN_ADJUSTMENT_AMOUNT_ASG_ENTRY_VALUE
+l_opening_balance = HOUSING_LOAN_OPENING_BALANCE_AMOUNT_ASG_ENTRY_VALUE
+skip              = HOUSING_LOAN_SKIP_SKIP_ASG_ENTRY_VALUE
+calc_breakdown_id_1 = employee_social_insurance_details_dir_card_dir_card_id[1]
+l_start_date      = to_char(ELEMENT_ENTRY_START_DATE,'MM-YYYY')
+formula_name      = '[ALDAR Housing Loan]'
+
+
+
+l_log = pay_internal_log_write('Enter ALDAR Housing Loan formula ')
+l_log = pay_internal_log_write(formula_name||' : Housing loan amount entered' + to_char(Housing_Loan_Amount))
+l_log = pay_internal_log_write(formula_name||' : No.of Installments entered ' + to_char(Installments))
+l_log = pay_internal_log_write(formula_name||' : Skip entered' + (Skip))
+l_log = pay_internal_log_write(formula_name||' : Deduction start date ' + to_char(Deduction_Start_Date,'DD-MM-YYYY'))
+
+
+
+/***** To get the element entry ID wise values -- starts *****/
+l_element_entry_id      = GET_CONTEXT(ELEMENT_ENTRY_ID, 0)
+p_element_entry_id      = TO_CHAR(l_element_entry_id)
+dummy = PAY_INTERNAL_LOG_WRITE(formula_name +' Element Entry ID:'+p_element_entry_id)
+
+if l_element_entry_id > 0 then
+( 
+CHANGE_CONTEXTS(REFERENCE_CODE	= p_element_entry_id)
+	(
+	
+	 
+	 change_contexts(calc_breakdown_id=calc_breakdown_id_1)
+      (
+	   l_net_run		= net_pay_rel_run
+	   
+	  )
+	dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': Element Entry ID:'+p_element_entry_id)
+	
+	    l_balance             = ALDAR_HOUSING_LOAN_REL_RC_ITD
+		if l_adjus_amount <> 0 then
+		(
+		
+		  l_balance             = ALDAR_HOUSING_LOAN_REL_RC_ITD + l_adjus_amount
+		  
+		)
+		if l_opening_balance <> 0 then
+		(
+		
+		 l_balance             = ALDAR_HOUSING_LOAN_REL_RC_ITD + l_adjus_amount + l_opening_balance
+		 
+		 l_balance_add         = l_opening_balance
+		 
+		)
+		l_amount              = Housing_Loan_Amount
+		l_Amount_recovered	  =	(l_balance )
+		l_pending_amount      = l_amount - (l_balance)
+
+dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': Total Loan Amount:'+to_char(l_amount))
+dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': No.of Installements:'+to_char(Installments))
+dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': Deduction start date:'+to_char(Deduction_Start_Date))
+dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': Amount recovered till month before deduction:'+to_char(l_Amount_recovered))
+dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': Amount to be recovered before deduction:'+to_char(l_pending_amount))
+
+   If l_start_date = to_char(PAY_EARN_PERIOD_END,'MM-YYYY') and l_balance = 0 then
+		(
+		 dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': Entering the Payment Session ')
+		 dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': Payment start date:'+(l_start_date))
+		  l_payment = l_amount
+		 dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': Payment Loan Amount:'+to_char(l_payment))
+
+		)
+      l_inst_amount = l_amount/Installments 
+	  
+/***** If deduction start date is prior to month end date and employee is active as of the month -- starts*****/
+IF (Deduction_Start_Date > PAY_EARN_PERIOD_END AND L_END_DATE <> PAY_ASG_TERMINATION_DATE and l_start_date <> to_char(PAY_EARN_PERIOD_END,'MM-YYYY')) 
+or  Skip = 'Y'  or (l_net_run < l_inst_amount )THEN
+(
+  Skip = 'Y'
+  l_msg = formula_name + 'Deduciton is skipped for the current month'
+  return Skip,l_Amount_recovered,l_pending_amount, l_payment
+
+)
+/***** If deduction start date is prior to month end date and employee is active as of the month -- ends*****/
+
+/********** If employee is active as of month and deduction start date is less than month end date -- starts******/
+If (PAY_EARN_PERIOD_END < PAY_ASG_TERMINATION_DATE and Deduction_Start_Date <= PAY_EARN_PERIOD_END) then
+    (
+   
+         l_pay_value = l_amount/Installments
+		 
+         l_pending_amount = l_amount - l_Amount_recovered - l_pay_value
+		 
+         if l_pending_amount < 1 then
+         (
+          l_pay_value = l_pay_value + l_pending_amount
+          )
+		  
+	
+    )
+/********** If employee is active as of month and deduction start date is less than month end date -- ends******/
+
+/*********** If employee is terminated then the total remaining amount will be deducted in termination amount -- starts  ****/
+if L_END_DATE = PAY_ASG_TERMINATION_DATE then
+(
+   l_pay_value = l_pending_amount
+)
+/*********** If employee is terminated then the total remaining amount will be deducted in termination amount -- ends  ****/
+
+   l_amount_recovered = (l_balance) + l_pay_value
+   l_pending_amount = l_amount - (l_balance) - l_pay_value
+   
+   dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': Pay value:'+to_char(l_pay_value))
+   dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': Amount recovered till month after deduction:'+to_char(l_Amount_recovered))
+   dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': Amount to be recovered after deduction:'+to_char(l_pending_amount)) 
+   
+    IF (l_amount= (l_balance  )+ l_pay_value) then
+    (
+      
+       Stop_Entry  = 'Y'
+	   l_adj_amount = l_amount *1
+    )
+   
+    )
+)
+/***** To get the element entry ID wise values -- ends *****/
+
+return l_pay_value,l_amount_recovered,l_pending_amount,Skip,l_Adj_amount,Stop_Entry,p_element_entry_id, l_payment, l_adjus_amount, l_balance_add

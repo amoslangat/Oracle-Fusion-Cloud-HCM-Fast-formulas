@@ -1,0 +1,48 @@
+/***************************************************************************************************
+Formula Name : Life Insurance
+Description  : This formula is returns the Life Insurance monthly Premium value.
+***************************************************************************************************/
+Default for Premium_Amount           is 0
+Default for No_of_Installments             is 0
+Default for PAY_ASG_TERMINATION_DATE is '4712/12/31 00:00:00' (date)
+Default for ELEMENT_ENTRY_START_DATE is '0001/01/01 00:00:00' (date)
+Default for ELEMENT_ENTRY_END_DATE   is '4712/12/31 00:00:00' (date)
+DEFAULT FOR PAY_EARN_PERIOD_START     is '1951/01/01 00:00:00' (date)
+
+Inputs are Premium_Amount, No_of_Installments
+
+l_period_start = PAY_EARN_PERIOD_START
+l_amount       = round(Premium_Amount/No_of_Installments,3)
+l_ter_date     = PAY_ASG_TERMINATION_DATE
+l_start        = ELEMENT_ENTRY_START_DATE
+l_end          = ELEMENT_ENTRY_END_DATE
+l_stop_date    = least(l_ter_date,l_end)
+formula_name   = '[Life Insurance]'
+
+l_remaining_amount = 0
+
+l_log = pay_internal_log_write(formula_name||' Premium Amount : '||to_char(Premium_Amount))
+l_log = pay_internal_log_write(formula_name||' Installments : '||to_char(No_of_Installments))
+l_log = pay_internal_log_write(formula_name||' Monthly Installment : '||to_char(l_amount))
+
+
+if ((ELEMENT_ENTRY_END_DATE was not defaulted) or (PAY_ASG_TERMINATION_DATE was not defaulted)) and (to_char(l_stop_date,'MMYYYY') = to_char(l_period_start,'MMYYYY')) then
+(
+
+  l_log = pay_internal_log_write(formula_name||' Stop date : '||to_char(l_stop_date))
+  
+  l_months = to_number(to_char(l_stop_date,'MM'))-to_number(to_char(l_start,'MM'))+1
+  
+  l_paid_months = mod(l_months,No_of_Installments)
+  l_unpaid_months = No_of_Installments - l_paid_months
+  l_remaining_amount = l_unpaid_months*l_amount
+  l_log = pay_internal_log_write(formula_name||' Paid months : '||to_char(l_paid_months))
+  l_log = pay_internal_log_write(formula_name||' Unpaid months : '||to_char(l_unpaid_months))
+  l_log = pay_internal_log_write(formula_name||' Amount Returning to GL : '||to_char(l_remaining_amount))
+  
+  l_amount = l_amount + l_remaining_amount
+)
+
+
+
+return l_amount

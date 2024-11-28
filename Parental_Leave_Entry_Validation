@@ -1,0 +1,36 @@
+/* 
+*******************************************************************************************************
+ FORmula Name   : Parental Leave Entry Validation
+ FORmula Type   : Global Absence Entry Validation
+ LDG            : AE Legislative Data Group
+ 
+ Description    : 1. Duration should not exceed 5 days per child birth and should be
+                     utilized within 6 months from child birth date.
+				  
+ Author         : Amos Langat
+ Creation date  : 28-Dec-2022
+ Last update on : 
+
+*******************************************************************************************************/ 
+
+INPUTS are iv_start_date      (date),
+           iv_end_date        (date),
+		   iv_attribute_date1 (date)
+		   
+
+valid = 'Y'
+
+l_6mon_date    =  ADD_MONTHS(iv_attribute_date1, 6)
+l_leave        = 'Parental Leave'
+
+
+IF GREATEST(l_6mon_date,iv_start_date,iv_end_date) <> l_6mon_date THEN
+(
+    valid = 'N'
+    error_message  = 'ALDAR_PARENTAL_ERR' /* Parental Leave can only be applied for within 6 months of childbirth date. */ 
+	
+    RETURN valid, error_message
+)
+
+
+RETURN valid

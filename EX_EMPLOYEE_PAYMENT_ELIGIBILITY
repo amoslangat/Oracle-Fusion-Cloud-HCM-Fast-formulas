@@ -1,0 +1,46 @@
+/*****************************************************************************
+Formula name: EX_EMPLOYEE_PAYMENT_ELIGIBILITY
+Formula type: Element Input Validation
+Description:
+Author: Amos Langat
+Date: 24-Nov-2022
+******************************************************************************/
+
+DEFAULT FOR ACP_TERMINATION_DATE is'4712/12/31 00:00:00'(Date)
+
+l_effective_date = GET_CONTEXT(EFFECTIVE_DATE, to_date('1951/01/01 00:00:00'))
+
+
+IF 
+
+ACP_TERMINATION_DATE WAS DEFAULTED
+
+THEN
+(
+FORMULA_STATUS = 'E'
+l_msg='This Element is Eligible Only for Terminated Employees'
+)
+
+l_td_emp=ACP_TERMINATION_DATE
+
+if
+
+((to_char((l_effective_date),'YYYY/MM')=TO_CHAR(l_td_emp,'YYYY/MM')) OR
+(l_effective_date<=l_td_emp))
+
+THEN
+(
+FORMULA_STATUS = 'E'
+l_msg='Current Month Terminated Employees are not Eligible'
+)
+
+
+
+
+else
+(
+FORMULA_STATUS = 'S'
+)
+
+return FORMULA_STATUS 
+

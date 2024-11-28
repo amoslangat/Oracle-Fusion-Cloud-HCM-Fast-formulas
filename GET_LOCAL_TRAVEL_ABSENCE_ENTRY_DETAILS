@@ -1,0 +1,91 @@
+/*****************************************************************************
+Formula name: GET_LOCAL_TRAVEL_ABSENCE_ENTRY_DETAILS
+Formula type: Global Absence Entry Validation
+Description :
+Author      : Abdulrahman Mohammed
+Date        : 25-Jan-2023
+******************************************************************************/
+
+
+
+default for l_sdate is '4712/12/31 00:00:00' (date)
+default for l_edate is '4712/12/31 00:00:00' (date)
+default for l_asg_id is 0
+default for l_per_id is 0
+default for l_pln_name is 'xx'
+default for anc_abs_entrs_absence_type_id is -1
+default for anc_abs_entrs_duration is 0
+default_data_value for anc_per_abs_entrs_absence_entry_id_arr is 0
+default for anc_abs_entrs_absence_status_cd is 'zz'
+default for anc_abs_entrs_approval_status_cd is 'zz'
+default for anc_abs_entrs_absence_type_id is -1
+default for anc_abs_entrs_start_date is '4712/12/31 00:00:00' (date)
+default for anc_abs_entrs_end_date is '4712/12/31 00:00:00' (date)
+default for ASG_HR_ASG_ID is 0
+
+default for ANC_ABS_ENTRS_ATTRIBUTE2 is 'X'
+default for ANC_ABS_ENTRS_ATTRIBUTE3 is 'X'
+
+default for ANC_ABS_ENTRS_ATTRIBUTE_DATE1 is '4712/12/31 00:00:00' (date)
+default for ANC_ABS_ENTRS_ATTRIBUTE_DATE2 is '1951/01/01 00:00:00' (date)
+
+
+
+inputs are l_sdate(date),l_edate(date),l_asg_id,l_per_id,l_pln_name
+
+formula_name = 'ALDAR_GET_LOCAL_TRAVEL_ABSENCE_ENTRY_DETAILS'
+l_log = pay_internal_log_write(formula_name||' - l_sdate '||to_char(l_sdate))
+l_log = pay_internal_log_write(formula_name||' - l_edate '||to_char(l_edate))
+l_log = pay_internal_log_write(formula_name||' - l_asg_id '||to_char(l_asg_id))
+l_log = pay_internal_log_write(formula_name||' - l_per_id '||to_char(l_per_id))
+l_log = pay_internal_log_write(formula_name||' - l_pln_name '||l_pln_name)
+
+l_abs_type_id = TO_NUMBER(GET_VALUE_SET('ALDAR_GET_ABSENCE_TYPE_ID','|=P_LEAVE_TYPE='''||'Local Business Travel More Than 1 Day'||''''))
+
+change_contexts(hr_assignment_id = l_asg_id, effective_date = l_edate, start_date = l_sdate, end_date = l_edate)
+(
+	i = 1
+
+	while anc_per_abs_entrs_absence_entry_id_arr.exists(i) loop
+	(
+		change_contexts (absence_entry_id = anc_per_abs_entrs_absence_entry_id_arr[i])
+		(
+			IF (ANC_ABS_ENTRS_ABSENCE_STATUS_CD = 'SUBMITTED' or ANC_ABS_ENTRS_ABSENCE_STATUS_CD = 'ORA_WITHDRAWN' and ANC_ABS_ENTRS_APPROVAL_STATUS_CD = 'ORA_AWAIT_AWAIT') 
+			    and ANC_ABS_ENTRS_APPROVAL_STATUS_CD <> 'DENIED' 
+                and anc_abs_entrs_absence_type_id = l_abs_type_id/*Local Business Travel More Than 1 Day*/	THEN
+			(
+                 
+
+				 l_hotel_provided       = ANC_ABS_ENTRS_ATTRIBUTE2
+				 l_executive_staff      = ANC_ABS_ENTRS_ATTRIBUTE3
+				 
+				
+				 l_event_start_date     = ANC_ABS_ENTRS_ATTRIBUTE_DATE1 
+				 l_event_end_date       = ANC_ABS_ENTRS_ATTRIBUTE_DATE2
+				 
+
+				 l_log = pay_internal_log_write(formula_name||' - l_hotel_provided i'||to_char(i)||' - '||(l_hotel_provided))
+				 l_log = pay_internal_log_write(formula_name||' - l_executive_staff i'||to_char(i)||' - '||(l_executive_staff))
+				 
+				 
+				 l_log = pay_internal_log_write(formula_name||' - l_event_start_date i'||to_char(i)||' - '||to_char(l_event_start_date,'DD-MM-YYYY'))
+				 l_log = pay_internal_log_write(formula_name||' - l_event_end_date i'||to_char(i)||' - '||to_char(l_event_end_date,'DD-MM-YYYY'))
+
+				 
+				 
+			)
+					
+			i = i + 1
+		)
+	 )
+)
+
+
+l_log = pay_internal_log_write(formula_name||' - l_hotel_provided '||l_hotel_provided)
+l_log = pay_internal_log_write(formula_name||' - l_executive_staff '||l_executive_staff)
+
+l_log = pay_internal_log_write(formula_name||' - l_event_start_date '||TO_CHAR(l_event_start_date,'DD-MM-YYYY'))
+l_log = pay_internal_log_write(formula_name||' - l_event_end_date '||TO_CHAR(l_event_end_date,'DD-MM-YYYY'))
+l_log = pay_internal_log_write(formula_name||' - end ')
+
+return  l_hotel_provided, l_executive_staff, l_event_start_date, l_event_end_date

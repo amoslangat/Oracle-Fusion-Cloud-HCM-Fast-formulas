@@ -1,0 +1,20 @@
+/*****Created By Abdulrahman for Sick leave Eligibility*******/
+
+DEFAULT FOR PER_ASG_ATTRIBUTE11 IS 'N'
+
+
+pro_confirmed = PER_ASG_ATTRIBUTE11
+
+
+
+if pro_confirmed = 'Y' then
+(
+ELIGIBLE = 'Y'
+)
+
+else
+(
+ELIGIBLE = 'N'
+)
+
+RETURN ELIGIBLE

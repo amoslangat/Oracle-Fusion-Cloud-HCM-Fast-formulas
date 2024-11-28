@@ -1,0 +1,146 @@
+/* 
+***************************************************************************************
+Formula Name    : Annual Leave LIAB Calc
+Formula Type    : Oracle Payroll
+
+
+Description     : 
+			   
+Author          : Amos Langat
+Date            : 16-Jun-2024
+Last Updated on : 
+***************************************************************************************/
+
+DEFAULT_DATA_VALUE FOR employee_social_insurance_details_dir_card_dir_card_id IS -1
+
+DEFAULT FOR pay_earn_period_end                             IS '4712/12/31 00:00:00' (date)
+DEFAULT for pay_earn_period_start                           IS '0001/01/01 00:00:00' (date)
+DEFAULT for pay_asg_termination_date                        IS '4712/12/31 00:00:00' (date)
+DEFAULT FOR pay_asg_hire_date                               IS '1951/01/01 00:00:00' (date)
+DEFAULT FOR asg_hr_asg_id                                   IS 0
+DEFAULT FOR annual_leave_liability_rel_itd                  IS 0
+DEFAULT FOR annual_leave_accrual_days_rel_itd               IS 0
+DEFAULT FOR aldar_annual_leave_monthly_accrual_days_rel_ytd IS 0
+
+for_name = '[ALDAR Annua Leave LIAB Calc] --> '
+
+calc_brk_id     = employee_social_insurance_details_dir_card_dir_card_id[1]
+l_comp_id       = deduction_component_by_ee
+l_period_sdate  = pay_earn_period_start
+l_period_edate  = pay_earn_period_end
+l_days          = 0
+
+CHANGE_CONTEXTS(CALC_BREAKDOWN_ID = calc_brk_id)
+(
+    l_liab_amount_itd     = annual_leave_liability_rel_itd
+	l_days_accrued_itd    = annual_leave_accrual_days_rel_itd
+	l_monthly_accrual_ytd = aldar_annual_leave_monthly_accrual_days_rel_ytd
+)
+
+l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Liability Amount accrued    : '||TO_CHAR(l_liab_amount_itd))
+l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Liability Days accrued      : '||TO_CHAR(l_days_accrued_itd))
+l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Monthly Accrual of the year : '||TO_CHAR(l_monthly_accrual_ytd))
+
+CHANGE_CONTEXTS (DIR_CARD_COMP_ID = l_comp_id)
+(
+    l_index = all_asgs_link_to_deduction_component.FIRST(-1)
+	
+	IF (all_asgs_link_to_deduction_component.EXISTS(l_index)) THEN
+	(
+		l_asg_id = all_asgs_link_to_deduction_component[l_index]
+		
+		l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Assignment ID of Employee : '||TO_CHAR(l_asg_id))
+		
+		CHANGE_CONTEXTS (PAYROLL_ASSIGNMENT_ID = l_asg_id)
+		(
+		    CHANGE_CONTEXTS(CALC_BREAKDOWN_ID = calc_brk_id)
+			(
+		        l_eff_date = LEAST(pay_asg_termination_date, l_period_edate)
+		        hr_id      = asg_hr_asg_id
+			
+		        CALL_FORMULA('ALDAR GET GROSS SALARY',
+						        l_eff_date      > 'p_eff_date',
+						        l_basic         < 'l_basic'         DEFAULT 0,
+						        l_hra           < 'l_hra'           DEFAULT 0,
+						        l_child_amount  < 'l_child_amount'  DEFAULT 0,
+						        l_social        < 'l_social'        DEFAULT 0,
+						        l_tra           < 'l_tra'           DEFAULT 0,
+						        l_tele_amount   < 'l_tele_amount'   DEFAULT 0,
+						        l_mon_oth_allow < 'l_mon_oth_allow' DEFAULT 0
+		                    )
+		    
+			    l_gross = l_basic + l_hra + l_child_amount + l_social + l_tra + l_tele_amount + l_mon_oth_allow
+			
+				CALL_FORMULA('ALDAR Get Accrual Detail',
+						        GREATEST(l_period_sdate, pay_asg_hire_date)     > 'start_date',
+						        LEAST(l_period_edate, pay_asg_termination_date) > 'end_date',
+								'Monthly Accrual'                               > 'mode',
+								hr_id                                           > 'l_asg_id',
+								l_month_accrual                                 < 'accrual' DEFAULT 0
+							)
+
+
+			    CALL_FORMULA('ALDAR Get Accrual Detail',
+						        l_period_sdate    > 'start_date',
+						        l_period_edate    > 'end_date',
+								'Detail'          > 'mode',
+								hr_id             > 'l_asg_id',
+						        l_adjoth_val_cp   < 'l_adjoth_val_cp' DEFAULT 0,
+						        l_adjoth_val_ce   < 'l_adjoth_val_ce' DEFAULT 0,
+						        l_adjoth_val      < 'l_adjoth_val'    DEFAULT 0,
+						        l_fnl_val         < 'l_fnl_val'       DEFAULT 0,
+						        l_acrl_val        < 'l_acrl_val'      DEFAULT 0,
+						        l_forft_val       < 'l_forft_val'     DEFAULT 0,
+						        l_covr_val        < 'l_covr_val'      DEFAULT 0
+		                    )
+				
+				l_start_date = GREATEST(TRUNC(l_period_sdate,'YYYY'), pay_asg_hire_date)
+			    l_end_date   = LEAST(l_period_edate, pay_asg_termination_date)
+							
+				CALL_FORMULA('ALDAR Get Accrual Detail',
+				                l_start_date     > 'start_date',
+								l_end_date       > 'end_date',
+								'Detail'         > 'mode',
+								hr_id            > 'l_asg_id',
+								l_round_off_val  < 'l_round_off_val' DEFAULT 0
+				            )
+				
+								
+				l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Monthly Accrual Days : '||TO_CHAR(l_month_accrual))
+				l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Round Off Value      : '||TO_CHAR(l_round_off_val))
+							
+				IF TO_CHAR(l_period_edate,'MM') = '12' AND TO_CHAR(pay_asg_termination_date,'MMYYYY') != TO_CHAR(l_period_edate,'MMYYYY') THEN
+				(
+				    /*l_accrual_unit = l_month_accrual + l_adjoth_val_cp + l_adjoth_val_ce + l_adjoth_val + l_forft_val + l_covr_val + l_round_off_val
+					l_month_accrual = l_month_accrual + l_round_off_val*/
+					l_accrual_unit = l_month_accrual 
+					l_month_accrual = l_month_accrual 
+					
+				)
+				
+				ELSE
+				(
+				    /*l_accrual_unit = l_month_accrual + l_adjoth_val_cp + l_adjoth_val_ce + l_adjoth_val + l_forft_val + l_covr_val*/
+                     l_accrual_unit = l_month_accrual
+				)
+		    
+ 		        /*l_liability = ((l_accrual_unit + l_days_accrued_itd) * (l_gross/20.58)) - l_liab_amount_itd*/
+				l_liability = ((l_accrual_unit + 0) * (l_gross/20.58)) 
+				
+				l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Liability for the current month : '||TO_CHAR(l_liability))
+				l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Accrual Unit for the Month      : '||TO_CHAR(l_accrual_unit))
+			
+			)
+		)
+	)
+	
+	ELSE
+	(
+		l_log   = PAY_INTERNAL_LOG_WRITE(for_name||' Error.. Assignment id is missing')
+		l_error = PAY_LOG_ERROR('PAY:PAY_ASG_ID_MISSING')
+	)
+)
+
+l_total_accrual = l_days_accrued_itd + l_accrual_unit
+
+RETURN l_liability, l_month_accrual, l_accrual_unit, l_total_accrual

@@ -1,0 +1,36 @@
+/* 
+*******************************************************************************************************
+ FORmula Name   : Al Eddah Leave Entry Validation
+ FORmula Type   : Global Absence Entry Validation
+ LDG            : AE Legislative Data Group
+ 
+ Description    : 1.Employee can avail maximum of 4 months and 10 days.
+				  
+Author          : Amos Langat
+Date            : 16-Jun-2024
+ Last update on : 
+
+*******************************************************************************************************/ 
+
+INPUTS are iv_start_date      (date),
+           iv_end_date        (date),
+		   iv_totalduration
+		   
+
+valid          = 'Y'
+l_leave        = 'Al Eddah Leave'
+l_elig_date    =  ADD_MONTHS(iv_start_date, 4)
+
+l_days        = days_between(l_elig_date,iv_start_date) + 10
+
+
+IF l_days < iv_totalduration THEN
+(
+    valid = 'N'
+    error_message  = 'ALDAR_ALEDDAH_ERR' /* Al Eddah Leave can be availed maximum of 4 months and 10 days.*/ 
+	
+    RETURN valid, error_message
+)
+
+
+RETURN valid

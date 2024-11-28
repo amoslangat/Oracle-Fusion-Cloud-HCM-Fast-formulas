@@ -1,0 +1,73 @@
+/*=======================================
+Formula Name : Annual Leave Proration
+Formula Type : Global Absence Partial Period Accrual Rate
+=========================================*/
+
+default for acp_hire_date is '0001/01/01 00:00:00' (date)
+default for acp_termination_date is '4712/12/31 00:00:00' (date)
+default for IV_PLANENROLLMENTSTARTDATE is '0001/01/01 00:00:00' (date)
+default for IV_PLANENROLLMENTENDDATE is '4712/12/31 00:00:00' (date)
+default for iv_accrualperiodstartdate is '0001/01/01 00:00:00' (date)
+default for iv_accrualperiodenddate is '4712/12/31 00:00:00' (date)
+DEFAULT FOR PER_ASG_GRADE_NAME is 'X'
+
+inputs are	iv_accrualperiodstartdate(date),iv_accrualperiodenddate(date), IV_PLANENROLLMENTSTARTDATE(date), IV_PLANENROLLMENTENDDATE(date)
+
+l_start_date = greatest(acp_hire_date,IV_PLANENROLLMENTSTARTDATE,iv_accrualperiodstartdate)
+l_end_date   = least(acp_termination_date,IV_PLANENROLLMENTENDDATE,iv_accrualperiodenddate)
+l_value      = 0
+l_round_value= 0
+l_diff       = 0
+
+
+l_total_period_days = days_between(iv_accrualperiodenddate,iv_accrualperiodstartdate) + 1
+l_prorate_days = days_between(l_end_date,l_start_date) + 1
+
+  l_log = ess_log_write('(Annual Leave Proration) l_start_date  '||to_char(l_start_date))
+  l_log = ess_log_write('(Annual Leave Proration) l_end_date  '||to_char(l_end_date))
+  l_log = ess_log_write('(Annual Leave Proration) l_total_period_days   '||to_char(l_total_period_days))
+  l_log = ess_log_write('(Annual Leave Proration) l_prorate_days  '||to_char(l_prorate_days))
+
+l_hr_assignment_id = ASG_HR_ASG_ID
+
+   CHANGE_CONTEXTS (HR_ASSIGNMENT_ID = l_hr_assignment_id ,EFFECTIVE_DATE = l_start_date)
+  (
+      l_grade  =  PER_ASG_GRADE_NAME  
+      l_log = PAY_INTERNAL_LOG_WRITE('(Annual Leave Proration) l_grade  '||l_grade)  	  
+  )	
+	
+   if (l_grade = '1' or l_grade = 'C') then
+  (
+    l_value = round((35 * l_prorate_days)/l_total_period_days,2)
+	l_round_value = round((35 * l_prorate_days)/l_total_period_days)
+	
+	l_diff = l_round_value - l_value
+  )
+  else
+  (
+    l_value = round((30 * l_prorate_days)/l_total_period_days,2)
+	l_round_value = round((30 * l_prorate_days)/l_total_period_days)
+	
+	l_diff = l_round_value - l_value
+  ) 
+
+l_log = ess_log_write('(Annual Leave Proration) l_value  '||to_char(l_value))
+l_log = ess_log_write('(Annual Leave Proration) l_round_value  '||to_char(l_round_value))
+l_log = ess_log_write('(Annual Leave Proration) l_diff  '||to_char(l_diff))
+
+if l_diff < 0.54 then
+(
+
+  accrual = l_round_value
+
+)
+else
+(
+
+accrual = l_round_value + 1
+
+)
+
+  l_log = ess_log_write('(Annual Leave Proration) accrual  '||to_char(accrual))
+
+return accrual

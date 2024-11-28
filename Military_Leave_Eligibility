@@ -1,0 +1,33 @@
+/* 
+*******************************************************************************************************
+ FORmula Name   : Military Leave Eligibility 
+ FORmula Type   : Participation and Rate Eligibility
+ LDG            : AE Legislative Data Group
+ 
+ Description    : 1. Leave can only be applied after completion of probation period	
+                  2. Only UAE Nationals are eligible. 
+ Author         : Abdulrahman Mohammeed
+ Creation date  : 28-Dec-2022
+ Last update on : 
+
+*******************************************************************************************************/
+
+DEFAULT FOR PER_ASG_ATTRIBUTE11 IS 'N' 
+DEFAULT FOR PER_PER_CITIZENSHIP_LEG_NAME IS 'X'
+
+pro_confirmed = PER_ASG_ATTRIBUTE11
+L_EFF_DATE	=	GET_CONTEXT(EFFECTIVE_DATE,'0001/01/01 00:00:00' (DATE)) 
+
+/*if (pro_confirmed = 'N' OR PER_PER_CITIZENSHIP_LEG_NAME  <> 'United Arab Emirates') then*/
+
+if (PER_PER_CITIZENSHIP_LEG_NAME  <> 'United Arab Emirates') then
+(
+ELIGIBLE = 'N'
+)
+
+else
+(
+ELIGIBLE = 'Y'
+)
+
+RETURN ELIGIBLE

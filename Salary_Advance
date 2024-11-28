@@ -1,0 +1,137 @@
+/*****************************************************************************
+Formula name: Salary Advance
+Formula type: Oracle payroll
+Description : The payment of the entered amount and deduction according to the no.of installements
+              and employee can apply the loan a month before the completion of previous loan
+Author      : Amos Langat
+Date        : 15-02-2024
+******************************************************************************/
+
+DEFAULT FOR Loan_Amount  is 0
+DEFAULT FOR ALDAR_SALARY_ADVANCE_REL_RC_ITD is 0
+DEFAULT FOR SALARY_ADVANCE_PAYMENT_ASG_RUN Is 0
+DEFAULT FOR ALDAR_SALARY_ADVANCE_MONITOR_REL_RC_ITD is 0
+DEFAULT FOR PAY_ASG_TERMINATION_DATE is '4712/12/31 00:00:00' (date)
+DEFAULT FOR PAY_EARN_PERIOD_END IS '4712/12/31 00:00:00' (date)
+DEFAULT FOR PAY_EARN_PERIOD_START IS '1951/01/01 00:00:00' (Date)
+DEFAULT FOR ELEMENT_ENTRY_START_DATE IS '1951/01/01 00:00:00' (Date)
+
+DEFAULT FOR SALARY_ADVANCE_ADJUSTMENT_AMOUNT_ASG_ENTRY_VALUE IS 0
+DEFAULT FOR SALARY_ADVANCE_OPENING_BALANCE_AMOUNT_ASG_ENTRY_VALUE IS 0
+
+default_data_value for employee_social_insurance_details_dir_card_dir_card_id is -1
+
+
+Inputs are Loan_Amount,
+           Leave (text),
+		   payment_Balance
+		   
+/** LOCAL VARIABLES BEGIN **/
+p_eff_date              = GET_CONTEXT(EFFECTIVE_DATE,'1951/01/01 00:00:00'(date))
+p_date = to_char(p_eff_date,'yyyy-MM-dd')
+l_eff_mm_yyyy   = to_char(p_eff_date,'MMYYYY')
+l_person_id			    = get_context(PERSON_ID, 0)
+l_end_date        = LEAST (PAY_EARN_PERIOD_END, PAY_ASG_TERMINATION_DATE)
+l_pay_value       = 0
+l_amount          = 0
+l_payment         = 0
+l_adj_amount      = 0
+l_net_run         = 0
+l_adjus_amount    = 0
+/*l_opening_balance = SALARY_ADVANCE_OPENING_BALANCE_AMOUNT_ASG_ENTRY_VALUE*/
+l_opening_balance = 0
+calc_breakdown_id_1 = employee_social_insurance_details_dir_card_dir_card_id[1]
+l_start_date      = to_char(ELEMENT_ENTRY_START_DATE,'MM-YYYY')
+formula_name      = '[ALDAR SALARY ADVANCE]'
+/*
+l_salary_advance_id   = to_number(get_value_set('ALDAR_GET_ELEMENT_ENTRY','|=p_person_id='''||to_char(l_person_id)||''''||'|p_eff_date='''||p_date||''''||'|p_element='''||'Salary Advance Monitor'||''''))
+l_salary_Advance_Start_date   = (get_value_set('ALDAR_GET_ELEMENT_ENTRY_START_DATE','|=p_person_id='''||to_char(l_person_id)||''''||'|p_eff_date='''||p_date||''''||'|p_element='''||'Salary Advance'||''''))
+
+l_sal_adv_mm_yyyy1 = to_date(l_salary_advance_Start_date,'YYYY-MM-DD')
+l_sal_adv_mm_yyyy = to_char(l_sal_adv_mm_yyyy1,'MMYYYY')
+
+l_log = pay_internal_log_write(formula_name||' : eff year' + l_eff_mm_yyyy)
+l_log = pay_internal_log_write(formula_name||' : Salary Advance yy' + l_sal_adv_mm_yyyy)
+
+*/
+l_log = pay_internal_log_write('Enter ALDAR Salary Advance formula ')
+l_log = pay_internal_log_write(formula_name||' : loan amount entered' + to_char(Loan_Amount))
+l_log = pay_internal_log_write(formula_name||' : Annual Leave' + leave)
+
+
+
+
+/***** To get the element entry ID wise values -- starts *****/
+l_element_entry_id      = GET_CONTEXT(ELEMENT_ENTRY_ID, 0)
+p_element_entry_id      = TO_CHAR(l_element_entry_id)
+dummy = PAY_INTERNAL_LOG_WRITE(formula_name +' Element Entry ID:'+p_element_entry_id)
+
+if l_element_entry_id > 0 then
+( 
+CHANGE_CONTEXTS(REFERENCE_CODE	= p_element_entry_id)
+	(
+	
+	 
+	 change_contexts(calc_breakdown_id=calc_breakdown_id_1)
+      (
+	   l_net_run		= net_pay_rel_run
+           l_log = pay_internal_log_write(formula_name||' : net run' + to_char(l_net_run))
+		   /*if l_sal_adv_mm_yyyy = l_eff_mm_yyyy then*/
+		   if SALARY_ADVANCE_PAYMENT_ASG_RUN <> 0 then
+		   (
+		     l_net_run = l_net_run - SALARY_ADVANCE_PAYMENT_ASG_RUN 
+			 l_log = pay_internal_log_write(formula_name||' : net run' + to_char(l_net_run))
+		   )
+	   
+	  )
+	dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': Element Entry ID:'+p_element_entry_id)
+	
+	    l_balance             = ALDAR_SALARY_ADVANCE_REL_RC_ITD
+		if l_adjus_amount <> 0 then
+		(
+		
+		  l_balance             = ALDAR_SALARY_ADVANCE_REL_RC_ITD + l_adjus_amount
+		  
+		)
+		if l_opening_balance <> 0 then
+		(
+		
+		 l_balance             = ALDAR_SALARY_ADVANCE_REL_RC_ITD + l_adjus_amount + l_opening_balance
+		 
+		)
+		l_amount              = Loan_Amount
+		l_Amount_recovered	  =	(l_balance )
+		l_pending_amount      = l_amount - (l_balance)
+
+dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': Total Loan Amount:'+to_char(l_amount))
+dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': Amount recovered till month before deduction:'+to_char(l_Amount_recovered))
+dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': Amount to be recovered before deduction:'+to_char(l_pending_amount))
+      
+	  l_pay_value = LEAST(l_net_run,l_pending_amount)
+       l_pay_value = GREATEST(0,l_pay_value)
+/*********** If employee is terminated then the total remaining amount will be deducted in termination amount -- starts  ****/
+if L_END_DATE = PAY_ASG_TERMINATION_DATE then
+(
+   l_pay_value = l_pending_amount
+)
+/*********** If employee is terminated then the total remaining amount will be deducted in termination amount -- ends  ****/
+
+   l_amount_recovered = (l_balance) + l_pay_value
+   l_pending_amount = l_amount - (l_balance) - l_pay_value
+   
+   dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': Pay value:'+to_char(l_pay_value))
+   dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': Amount recovered till month after deduction:'+to_char(l_Amount_recovered))
+   dummy = PAY_INTERNAL_LOG_WRITE(formula_name+': Amount to be recovered after deduction:'+to_char(l_pending_amount)) 
+   
+    IF (l_amount= (l_balance  )+ l_pay_value) then
+    (
+      
+       Stop_Entry  = 'Y'
+	   l_adj_amount = l_amount *1
+    )
+   
+    )
+)
+/***** To get the element entry ID wise values -- ends *****/
+
+return l_pay_value,l_amount_recovered,l_pending_amount,l_Adj_amount,Stop_Entry,p_element_entry_id, l_payment, l_adjus_amount

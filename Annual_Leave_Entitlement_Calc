@@ -1,0 +1,157 @@
+/*
+******************************************************************************************
+Formula Name  : Annual Leave ENT Calc
+Formula Type  : Oracle Payroll
+Author          : Amos Langat
+Date            : 16-Jun-2024
+******************************************************************************************/
+
+DEFAULT_DATA_VALUE FOR employee_social_insurance_details_dir_card_dir_card_id IS -1
+
+DEFAULT FOR pay_earn_period_start    IS '4712/12/31 00:00:00' (date)
+DEFAULT FOR pay_earn_period_end      IS '1951/01/01 00:00:00' (date)
+DEFAULT FOR pay_asg_hire_date        IS '4712/12/31 00:00:00' (date)
+DEFAULT FOR pay_asg_termination_date IS '1951/01/01 00:00:00' (date)
+DEFAULT FOR asg_hr_asg_id            IS 0
+DEFAULT FOR pay_dir_comp_dir_card_id IS -1
+
+INPUTS ARE prorate_start (date),
+           prorate_end   (date)
+		   
+for_name = '[ALDAR Annual Leave ENT Calc] --> '
+
+l_basic_ded         = 0
+l_hra_ded           = 0
+l_tra_ded           = 0
+l_social_ded        = 0
+l_child_amt_ded     = 0
+l_mon_oth_allow_ded = 0
+l_tele_amt_ded      = 0
+l_abs_unit          = 0
+l_prorate_start		= GREATEST(prorate_start, pay_earn_period_start)
+l_prorate_end		= LEAST(prorate_end, pay_earn_period_end)
+
+l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Prorate Start : '||TO_CHAR(prorate_start,'dd-MM-yyyy'))
+l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Prorate End   : '||TO_CHAR(prorate_end,'dd-MM-yyyy'))
+
+calc_brkdown_id = employee_social_insurance_details_dir_card_dir_card_id[1]
+l_comp_id	    = deduction_component_by_ee
+
+CHANGE_CONTEXTS(dir_card_comp_id = l_comp_id) /*Start C1*/
+(
+    l_index = all_asgs_link_to_deduction_component.FIRST(-1)
+	
+    IF (all_asgs_link_to_deduction_component.EXISTS(l_index)) THEN
+    (
+		l_asg_id = all_asgs_link_to_deduction_component[l_index]
+		
+        CHANGE_CONTEXTS(payroll_assignment_id = l_asg_id) /*Start C2*/
+        (
+		    l_abs_entitlement_comp_sdate = TRUNC(pay_dir_comp_min_start_date,'dd')
+			l_abs_entitlement_comp_edate = TRUNC(pay_dir_comp_max_end_date,'dd')
+			
+			l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Abs Ent Comp Start Date : ' ||TO_CHAR(l_abs_entitlement_comp_sdate,'dd-MM-yyyy'))
+			l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Abs Ent Comp End Date   : ' ||TO_CHAR(l_abs_entitlement_comp_edate,'dd-MM-yyyy'))
+			
+		    l_abs_start_date	= GREATEST(pay_earn_period_start, l_abs_entitlement_comp_sdate)
+			l_abs_end_date		= LEAST(pay_earn_period_end, l_abs_entitlement_comp_edate)
+			
+			l_log = PAY_INTERNAL_LOG_WRITE(for_name||' l_abs_start_date : '||TO_CHAR(l_abs_start_date,'dd-MM-yyyy'))
+			l_log = PAY_INTERNAL_LOG_WRITE(for_name||' l_abs_end_date   : '||TO_CHAR(l_abs_end_date,'dd-MM-yyyy'))
+			
+			CHANGE_CONTEXTS(CALC_BREAKDOWN_ID = calc_brkdown_id)
+			(        
+				l_eff_date = LEAST(pay_asg_termination_date,pay_earn_period_end) 
+				l_hr_id    = asg_hr_asg_id
+            
+			    l_abs_cnt = 1
+			    l_abs_entitlement_dates = pay_child_dir_comp_for_run_period_dir_card_comp_id
+			
+			    WHILE (l_abs_entitlement_dates.EXISTS(l_abs_cnt)) LOOP
+                (
+				    l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Inside While Loop for Calculation Accrual Reversal Amount')
+				    l_abs_entitlement_date_comp_id = l_abs_entitlement_dates[l_abs_cnt]
+				    
+                    CHANGE_CONTEXTS(dir_card_comp_id = l_abs_entitlement_date_comp_id)
+                    (
+                        l_abs_entitlement_date_comp_date = pay_dir_comp_min_start_date
+                    
+                        IF l_abs_entitlement_date_comp_date >= l_prorate_start and l_abs_entitlement_date_comp_date <= l_prorate_end THEN
+                        (
+                            CHANGE_CONTEXTS(date_earned = l_abs_entitlement_date_comp_date) /*Start C1*/
+                            (
+                                l_log = PAY_INTERNAL_LOG_WRITE(for_name||' l_abs_entitlement_date_comp_date ' ||TO_CHAR(l_abs_entitlement_date_comp_date,'dd-MM-yyyy'))
+
+	                            /*-----------------------------------------------------  Entitlement Unit  --------------------------------------------------------------------------------*/
+						        
+								CHANGE_CONTEXTS(date_earned = l_abs_entitlement_date_comp_date)
+						        (
+						            CHANGE_CONTEXTS(part_name = 'ORA_ENTITLEMENT_UNIT')
+						            (
+						                CALL_FORMULA('CALL_CALC_VALUE',
+												        0                               > 'BASE',
+												        l_abs_entitlement_date_abs_unit < 'DED_AMOUNT' DEFAULT 0,
+												        l_abs_entitlement_date_uom      < 'OUT_UOM'    DEFAULT 'ND'
+											        )
+						            )
+						        )
+						
+						        l_log = PAY_INTERNAL_LOG_WRITE(for_name||' l_abs_entitlement_date_abs_unit :'||TO_CHAR(l_abs_entitlement_date_abs_unit))
+						        l_log = PAY_INTERNAL_LOG_WRITE(for_name||' l_abs_entitlement_date_uom      :'||l_abs_entitlement_date_uom)
+								
+						        l_abs_unit = l_abs_unit + l_abs_entitlement_date_abs_unit
+					        )
+					        
+							/*-----------------------------------------------------  Deduction Amount Calculation - Start-------------------------------------------------------*/
+			                
+                                CALL_FORMULA('ALDAR GET GROSS SALARY',
+						                        l_abs_entitlement_date_comp_date      > 'p_eff_date',
+						                        l_basic         < 'l_basic'         DEFAULT 0,
+						                        l_hra           < 'l_hra'           DEFAULT 0,
+						                        l_child_amount  < 'l_child_amount'  DEFAULT 0,
+						                        l_social        < 'l_social'        DEFAULT 0,
+						                        l_tra           < 'l_tra'           DEFAULT 0,
+						                        l_tele_amount   < 'l_tele_amount'   DEFAULT 0,
+						                        l_mon_oth_allow < 'l_mon_oth_allow' DEFAULT 0
+						                    )							
+					
+					            l_basic_ded         = l_basic_ded + (l_basic/20.58)
+								l_hra_ded           = l_hra_ded + (l_hra/20.58)
+								l_child_amt_ded     = l_child_amt_ded + (l_child_amount/20.58)
+								l_social_ded        = l_social_ded + (l_social/20.58)
+								l_tra_ded           = l_tra_ded + (l_tra/20.58)
+								l_tele_amt_ded      = l_tele_amt_ded + (l_tele_amount/20.58)
+								l_mon_oth_allow_ded = l_mon_oth_allow_ded + (l_mon_oth_allow/20.58)
+				
+					        /*-----------------------------------------------------  Deduction Amount Calculation - End  ---------------------------------------------------------------------*/
+				        )
+				    )
+				    
+				    l_log = PAY_INTERNAL_LOG_WRITE(for_name||' l_abs_entitlement_date_comp_date : '||TO_CHAR(l_abs_entitlement_date_comp_date,'dd-MM-yyyy'))
+
+				    l_abs_cnt = l_abs_cnt + 1
+				)
+			)
+
+		)
+	)
+)
+
+l_basic_ded         = l_basic_ded /** -1*/
+l_hra_ded           = l_hra_ded /** -1*/
+l_child_amt_ded     = l_child_amt_ded /** -1*/
+l_social_ded        = l_social_ded /** -1*/
+l_tra_ded           = l_tra_ded /** -1*/
+l_tele_amt_ded      = l_tele_amt_ded /** -1*/
+l_mon_oth_allow_ded = l_mon_oth_allow_ded /** -1*/
+l_tot_days          = l_abs_unit
+
+l_tot_ded = l_basic_ded + l_hra_ded + l_child_amt_ded + l_social_ded + l_tra_ded + l_tele_amt_ded + l_mon_oth_allow_ded
+l_tot_pay = l_tot_ded * -1
+l_net_pay = l_tot_pay + l_tot_ded
+
+RETURN l_basic_ded, l_hra_ded, l_child_amt_ded, l_social_ded, l_tra_ded, l_tele_amt_ded, l_mon_oth_allow_ded, l_tot_days, l_tot_ded, l_tot_pay, l_net_pay
+
+
+
+

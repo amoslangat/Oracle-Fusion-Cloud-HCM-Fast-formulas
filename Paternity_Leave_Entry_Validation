@@ -1,0 +1,37 @@
+/* 
+*******************************************************************************************************
+ FORmula Name   : Paternity Leave Entry Validation
+ FORmula Type   : Global Absence Entry Validation
+ LDG            : AE Legislative Data Group
+ 
+ Description    : •	Leave should be availed in continuation to the child`s birth.
+				  
+ Author         : Amos Langat
+ Creation date  : 29-Dec-2022
+ Last update on : 
+
+*******************************************************************************************************/ 
+
+INPUTS are iv_start_date      (date),
+           iv_end_date        (date),
+          iv_attribute_date1 (date)
+          
+		   
+
+valid = 'Y'
+
+l_child_dob    =  add_days(iv_attribute_date1,1)
+l_leave        = 'Paternity Leave'
+
+
+IF l_child_dob <> iv_start_date  THEN
+(
+    valid = 'N'
+   error_message  = 'ALDA_PATERNITY_ERROR' /* Paternity leave can be availed in continuation to child Date of Birth. */ 
+	
+    RETURN valid, error_message
+)
+
+
+
+RETURN valid

@@ -1,0 +1,50 @@
+/* 
+*******************************************************************************************************
+ FORmula Name   : Hajj Leave Entry Validation
+ FORmula Type   : Global Absence Entry Validation
+ LDG            : AE Legislative Data Group
+ 
+ Description    : •	Muslim employees can avail Hajj Leave with full pay for 30 calendar days once in the service period.
+				  
+ Author         : Amos Langat
+ Creation date  : 29-Dec-2022
+ Last update on : 
+
+*******************************************************************************************************/ 
+
+INPUTS are iv_start_date      (date),
+           iv_end_date        (date),
+		   iv_totalduration
+		   
+
+valid = 'Y'
+
+l_leave       = 'Hajj Leave'
+l_person_id   = GET_CONTEXT(PERSON_ID,0)
+l_ab_entry_id = TO_CHAR(GET_CONTEXT(ABSENCE_ENTRY_ID,0))
+
+
+l_leave_exists  = GET_VALUE_SET('ALDAR_LEAVE_EXISTS_IN_SERVICE','|=PER_ID='''||TO_CHAR(l_person_id)||''''||
+                                                                       '|P_LEAVE='''||l_leave||''''||
+																	   '|P_AB_ENTRY_ID='''||l_ab_entry_id||'''')
+
+
+IF l_leave_exists = 'Y' then
+(
+    valid = 'N'
+    error_message  = 'ALDAR_HAJJ_ONE_ERR' /*Employee can avail Hajj Leave once per service*/ 
+	
+    RETURN valid, error_message
+
+
+)
+IF  iv_totalduration > 30 THEN
+(
+    valid = 'N'
+    error_message  = 'ALDAR_HAJJ_ERR' /* Employee can only avail 30 days of Hajj Leave */ 
+	
+    RETURN valid, error_message
+)
+
+
+RETURN valid

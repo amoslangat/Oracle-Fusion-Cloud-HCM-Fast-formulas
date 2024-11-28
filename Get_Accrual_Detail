@@ -1,0 +1,66 @@
+/* 
+***************************************************************************************
+Formula Name    : Get Accrual Detail
+Formula Type    : Payroll Access to HR
+LDG             : 
+
+Description     : 
+			   
+Author          : Amos Langat
+Date            : 16-Jan-2022
+Last Updated on : 
+***************************************************************************************/
+
+INPUTS ARE start_date (date),
+           end_date   (date),
+		   mode       (text),
+		   l_asg_id,
+		   l_per_id
+
+for_name   = '[ALDAR Get Accrual Detail] --> '
+l_pln_name = 'Annual Leave'
+
+start_date1 = TRUNC(start_date,'YYYY')
+end_date1   = LAST_DAY(ADD_MONTHS(start_date1,11))
+
+IF mode = 'Detail' THEN
+(
+    CHANGE_CONTEXTS(hr_assignment_id = l_asg_id, effective_date = end_date)
+	(
+		l_adjoth_val_cp	= GET_BAL_COMP_VAL(l_pln_name, start_date, end_date, 'ADJOTH','CP')
+		l_adjoth_val_ce	= GET_BAL_COMP_VAL(l_pln_name, start_date, end_date, 'ADJOTH','CE')
+		l_adjoth_val	= GET_BAL_COMP_VAL(l_pln_name, start_date, end_date, 'ADJOTH')
+		l_fnl_val		= GET_BAL_COMP_VAL(l_pln_name, start_date, end_date, 'FNL')
+		l_abs_val		= GET_BAL_COMP_VAL(l_pln_name, start_date, end_date, 'ABS')
+		l_acrl_val      = GET_BAL_COMP_VAL(l_pln_name, start_date1, end_date1, 'FLDR')
+		l_forft_val     = GET_BAL_COMP_VAL(l_pln_name, start_date, end_date, 'FORFT')
+		l_covr_val      = GET_BAL_COMP_VAL(l_pln_name, start_date, end_date, 'COVR')
+		l_round_off_val = GET_BAL_COMP_VAL(l_pln_name, start_date, end_date, 'ADJOTH','ALDAR_ROUNDOFF')
+	)
+
+	l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Inside the Accrual Detail Formula')
+	l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Start Date         : '||TO_CHAR(start_date,'dd-MM-yyyy'))
+	l_log = PAY_INTERNAL_LOG_WRITE(for_name||' End Date           : '||TO_CHAR(end_date,'dd-MM-yyyy'))
+	l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Adj Compensatory   : '||TO_CHAR(l_adjoth_val_cp))
+	l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Adj Clerical Error : '||TO_CHAR(l_adjoth_val_ce))
+	l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Final Disbursement : '||TO_CHAR(l_fnl_val))
+	l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Absences           : '||TO_CHAR(l_abs_val))
+	l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Accrual            : '||TO_CHAR(l_acrl_val))
+	l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Forfeiture         : '||TO_CHAR(l_forft_val))
+	l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Carryover          : '||TO_CHAR(l_covr_val))
+	l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Round Off Value    : '||TO_CHAR(l_round_off_val))
+
+	RETURN l_adjoth_val_cp, l_adjoth_val_ce, l_adjoth_val, l_fnl_val, l_abs_val, l_acrl_val, l_forft_val, l_covr_val, l_round_off_val
+)
+
+IF mode = 'Monthly Accrual' THEN
+(
+    CALL_FORMULA('ALDAR Get Monthly Accrual',
+	                start_date > 'start_date',
+					end_date   > 'end_date',
+					l_asg_id   > 'l_asg_id',
+					accrual    < 'accrual' DEFAULT 0
+				)
+	
+	RETURN accrual
+)

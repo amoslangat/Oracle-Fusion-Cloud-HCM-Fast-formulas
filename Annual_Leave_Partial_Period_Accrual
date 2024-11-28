@@ -1,0 +1,280 @@
+/* 
+***************************************************************************************
+Formula Name    : Annual Leave Partial Period Accrual
+Formula Type    : Global Absence Partial Period Accrual Rate
+LDG             : AE Legislative Data Group
+
+Description     : 
+Author          : Amos Langat
+Date            : 16-Jun-2024
+***************************************************************************************/
+
+DEFAULT FOR iv_caledarstartdate       IS '4712/12/31 00:00:00' (date)
+DEFAULT FOR iv_caledarenddate         IS '4712/12/31 00:00:00' (date)
+DEFAULT FOR iv_accrualperiodstartdate IS '0001/01/01 00:00:00' (date)
+DEFAULT FOR iv_accrualperiodenddate   IS '4712/12/31 00:00:00' (date)
+DEFAULT FOR acp_hire_date             IS '0001/01/01 00:00:00' (date)
+DEFAULT FOR acp_termination_date      IS '4712/12/31 00:00:00' (date)
+DEFAULT FOR per_asg_attribute8        IS 'XX'
+DEFAULT FOR asg_hr_asg_id             IS 0
+DEFAULT FOR PER_ASG_BUSINESS_UNIT_NAME IS 'X'
+DEFAULT FOR PER_ASG_GRADE_NAME 	  	  IS 'X'
+
+Inputs are iv_accrualperiodstartdate (date), 
+           iv_accrualperiodenddate   (date)
+
+for_name           = '[ALDAR Annual Leave Partial Period Accrual] --> '
+
+l_hire_date        = acp_hire_date
+l_termination_date = acp_termination_date
+l_total_accrual    = 0
+l_per_id           = GET_CONTEXT(PERSON_ID,0)
+l_asg_id           = asg_hr_asg_id
+l_pln_name         = 'Annual Leave'
+
+l_log = ESS_LOG_WRITE(for_name||' Accrual Period Start Date : '||TO_CHAR(iv_accrualperiodstartdate))
+l_log = ESS_LOG_WRITE(for_name||' Accrual Period End Date   : '||TO_CHAR(iv_accrualperiodenddate))
+l_log = ESS_LOG_WRITE(for_name||' Hire Date                 : '||TO_CHAR(l_hire_date,'dd-MM-yyyy'))
+l_log = ESS_LOG_WRITE(for_name||' Termination Date          : '||TO_CHAR(l_termination_date,'dd-MM-yyyy'))
+
+
+l_loop_start = GREATEST(iv_accrualperiodstartdate,l_hire_date)
+l_loop_end   = LEAST(iv_accrualperiodenddate,l_termination_date)
+
+/*CAL_MODE(BU) start*/
+CHANGE_CONTEXTS (HR_ASSIGNMENT_ID = asg_hr_asg_id,EFFECTIVE_DATE = l_loop_start)
+		(
+			l_BU = PER_ASG_BUSINESS_UNIT_NAME
+		)
+
+
+l_CAL_MODE = GET_TABLE_VALUE('ALDAR_BUSINESS_UNIT_ELIGIBILITY','Eligibility',l_BU,'0')
+l_log = ESS_LOG_WRITE(for_name||' CAL_MODE   :'||l_CAL_MODE)
+/*CAL_MODE(BU) end*/
+
+WHILE l_loop_start < l_loop_end LOOP
+( 
+    l_start_date  = l_loop_start
+	l_end_date    = LEAST(LAST_DAY(l_start_date),l_termination_date)
+
+	l_log = ESS_LOG_WRITE(for_name||' Inside the While Loop for the month : '||TO_CHAR(l_start_date,'MONTH'))
+	l_log = ESS_LOG_WRITE(for_name||' Start Date                          : '||TO_CHAR(l_start_date,'dd-MM-yyyy'))
+	l_log = ESS_LOG_WRITE(for_name||' End Date                            : '||TO_CHAR(l_end_date,'dd-MM-yyyy'))
+
+
+	CALL_FORMULA('Annual Leave',
+	                l_start_date   > 'iv_accrualperiodstartdate',
+					l_end_date     > 'iv_accrualperiodenddate',
+					iv_event_dates < 'iv_event_dates'  DEFAULT EMPTY_DATE_NUMBER
+				)
+
+	l_count = iv_event_dates.COUNT
+
+	/* Hire Month, Termination Month or Grade Change Month --> Proration Calucation has to be done */
+
+IF l_start_date <> TRUNC(l_start_date,'MM') OR l_end_date <> LAST_DAY(TRUNC(l_start_date,'MM')) OR l_count > 2 THEN   /* Hire Month, Termination Month or Grade Change Month */
+	(
+	    l_log = ESS_LOG_WRITE(for_name||' Inside the Proration Condition')
+
+	    IF TO_CHAR(l_start_date,'MM') <> '02' THEN
+	    (
+	        l_factor = 30
+	    )
+
+	    ELSE
+	    (
+	        l_factor = TO_NUMBER(TO_CHAR(LAST_DAY(l_start_date),'DD'))
+	    )
+
+		l_work_days = DAYS_BETWEEN(l_end_date,l_start_date) + 1
+
+		l_log = ESS_LOG_WRITE(for_name||' Working Days : '||TO_CHAR(l_work_days))
+		l_log = ESS_LOG_WRITE(for_name||' Factor       : '||TO_CHAR(l_factor))
+
+	    i = 1 
+		j = l_count
+		l_accrual = 0
+
+		if(l_start_date = l_end_date) then (
+		CHANGE_CONTEXTS(EFFECTIVE_DATE = l_end_date)
+			(
+				if(l_CAL_MODE = 'ALDAR')then(
+				l_annual_ent = per_asg_attribute8
+					)
+				else if(l_CAL_MODE = 'C2I')then(
+				l_grade 	 = PER_ASG_GRADE_NAME
+				l_annual_ent = per_asg_attribute8
+					if(l_annual_ent = 'Based on grade') then(l_annual_ent = GET_TABLE_VALUE('C2i_ANNUAL_LEAVE_ELIGIBILITY','Eligibility',l_grade,'0'))
+				
+					)
+			)
+			l_ent = TO_NUMBER(SUBSTR(l_annual_ent,1,2))
+			l_prorate_days = 1
+			l_accrual = l_accrual + (((l_ent/12) / l_factor) * l_prorate_days)
+		)
+		
+		else(
+        WHILE i < j LOOP
+        (  
+
+			IF (iv_event_dates[i+1] = iv_event_dates[l_count]) then
+			(
+				l_prorate_days = DAYS_BETWEEN(iv_event_dates[i+1], iv_event_dates[i]) + 1 
+			)
+		
+			ELSE
+			(
+				l_prorate_days = DAYS_BETWEEN(iv_event_dates[i+1], iv_event_dates[i])
+			)
+
+			CHANGE_CONTEXTS(EFFECTIVE_DATE = ADD_DAYS(iv_event_dates[i+1],-1))
+			(
+				
+				if(l_CAL_MODE = 'ALDAR')then(
+				l_annual_ent = per_asg_attribute8
+					)
+				else if(l_CAL_MODE = 'C2I')then(
+				l_grade 	 = PER_ASG_GRADE_NAME
+				l_annual_ent = per_asg_attribute8
+					if(l_annual_ent = 'Based on grade') then(l_annual_ent = GET_TABLE_VALUE('C2i_ANNUAL_LEAVE_ELIGIBILITY','Eligibility',l_grade,'0'))
+				
+					)
+			)
+
+			l_ent = TO_NUMBER(SUBSTR(l_annual_ent,1,2))
+
+			l_accrual = l_accrual + (((l_ent/12) / l_factor) * l_prorate_days)
+
+			l_log = ESS_LOG_WRITE(for_name||' Prorate Days    : '||TO_CHAR(l_prorate_days))
+			l_log = ESS_LOG_WRITE(for_name||' Monthly Accrual : '||TO_CHAR(l_accrual))
+
+			i = i  + 1
+        )
+		)
+        l_mon_accrual = l_accrual		
+	)
+
+	ELSE
+	(
+	    CHANGE_CONTEXTS(EFFECTIVE_DATE = l_end_date)
+		(
+		    
+				if(l_CAL_MODE = 'ALDAR')then(
+				l_annual_ent = per_asg_attribute8
+					)
+				else if(l_CAL_MODE = 'C2I')then(
+				l_grade 	 = PER_ASG_GRADE_NAME
+				l_annual_ent = per_asg_attribute8
+					if(l_annual_ent = 'Based on grade') then(l_annual_ent = GET_TABLE_VALUE('C2i_ANNUAL_LEAVE_ELIGIBILITY','Eligibility',l_grade,'0'))
+				
+					)
+		)
+
+        l_mon_accrual = (TO_NUMBER(SUBSTR(l_annual_ent,1,2)) / 12)
+	)
+
+	l_total_accrual = l_total_accrual + l_mon_accrual
+
+	l_log = ESS_LOG_WRITE(for_name||' Accrual for the month is : '||TO_CHAR(l_mon_accrual))
+	l_log = ESS_LOG_WRITE(for_name||' Total Accrual            : '||TO_CHAR(l_total_accrual))
+
+	l_loop_start = ADD_MONTHS(TRUNC(l_loop_start,'MM'),1)
+
+)
+
+l_log = ESS_LOG_WRITE(for_name||' Final Accrual for Total Year : '||TO_CHAR(l_total_accrual))
+
+/* Carryover and Round Off Calculation -------------------------------------------------------------------- STARTS */
+
+l_prev_end   = ADD_DAYS(iv_accrualperiodstartdate,-1)
+l_prev_start = TO_DATE('01-01-'||TO_CHAR(l_prev_end,'YYYY'),'dd-MM-yyyy')
+
+
+CHANGE_CONTEXTS(hr_assignment_id = l_asg_id)
+(
+	l_adjoth_val_cp	= GET_BAL_COMP_VAL(l_pln_name, l_prev_start, l_prev_end, 'ADJOTH','CP')
+	l_adjoth_val_ce	= GET_BAL_COMP_VAL(l_pln_name, l_prev_start, l_prev_end, 'ADJOTH','CE')
+	l_round_off_val = GET_BAL_COMP_VAL(l_pln_name, l_prev_start, l_prev_end, 'ADJOTH','ALDAR_ROUNDOFF')
+	l_adjoth_val_ALDAR_ADJ	= GET_BAL_COMP_VAL(l_pln_name, l_prev_start, l_prev_end, 'ADJOTH','ALDAR_ADJ')
+	l_adjoth_val	= GET_BAL_COMP_VAL(l_pln_name, l_prev_start, l_prev_end, 'ADJOTH')
+	l_fnl_val		= GET_BAL_COMP_VAL(l_pln_name, l_prev_start, l_prev_end, 'FNL')
+	l_abs_val		= GET_BAL_COMP_VAL(l_pln_name, l_prev_start, l_prev_end, 'ABS')
+	l_acrl_val      = GET_BAL_COMP_VAL(l_pln_name, l_prev_start, l_prev_end, 'FLDR')
+	l_forft_val     = GET_BAL_COMP_VAL(l_pln_name, l_prev_start, l_prev_end, 'FORFT')
+	l_covr_val      = GET_BAL_COMP_VAL(l_pln_name, l_prev_start, l_prev_end, 'COVR')
+)
+
+l_log = ESS_LOG_WRITE(for_name||' Start Date           : '||TO_CHAR(l_prev_start,'dd-MM-yyyy'))
+l_log = ESS_LOG_WRITE(for_name||' End Date             : '||TO_CHAR(l_prev_end,'dd-MM-yyyy'))
+l_log = ESS_LOG_WRITE(for_name||' Adj Compensatory     : '||TO_CHAR(l_adjoth_val_cp))
+l_log = ESS_LOG_WRITE(for_name||' Adj Clerical Error   : '||TO_CHAR(l_adjoth_val_ce))
+l_log = ESS_LOG_WRITE(for_name||' Round Off Adjustment : '||TO_CHAR(l_round_off_val))
+l_log = ESS_LOG_WRITE(for_name||' l_adjoth_val_ALDAR_ADJ : '||TO_CHAR(l_adjoth_val_ALDAR_ADJ))
+l_log = ESS_LOG_WRITE(for_name||' Final Disbursement   : '||TO_CHAR(l_fnl_val))
+l_log = ESS_LOG_WRITE(for_name||' Absences             : '||TO_CHAR(l_abs_val))
+l_log = ESS_LOG_WRITE(for_name||' Accrual              : '||TO_CHAR(l_acrl_val))
+l_log = ESS_LOG_WRITE(for_name||' Forfeiture           : '||TO_CHAR(l_forft_val))
+l_log = ESS_LOG_WRITE(for_name||' Carryover            : '||TO_CHAR(l_covr_val))
+
+l_curr_covr_val = l_acrl_val + l_covr_val + l_adjoth_val + l_adjoth_val_cp + l_adjoth_val_ce + l_abs_val + l_adjoth_val_ALDAR_ADJ
+
+l_log = ESS_LOG_WRITE(for_name||' Current Carryover    : '||TO_CHAR(l_curr_covr_val))
+
+IF l_curr_covr_val > 10 THEN
+(
+    l_log = ESS_LOG_WRITE(for_name||' Carryover Greater than 10')
+
+
+
+    IF l_round_off_val > 0 THEN
+	(
+	    l_total_accrual = l_total_accrual - l_round_off_val
+        accrual = l_total_accrual
+        l_round_off = ROUND(l_total_accrual) - l_total_accrual
+
+        adjustmentvalues[1] = l_round_off
+        adjustmentdates[1]  = GREATEST(iv_accrualperiodstartdate,l_hire_date)
+        adjustmenttypes[1]  = 'ALDAR_ROUNDOFF'
+
+        l_log = ESS_LOG_WRITE(for_name||' Previous Round Off Greater than 0')
+        l_log = ESS_LOG_WRITE(for_name||' Accrual   : '||TO_CHAR(accrual))
+        l_log = ESS_LOG_WRITE(for_name||' Round Off : '||TO_CHAR(l_round_off))
+
+        RETURN accrual, adjustmentvalues, adjustmentdates, adjustmenttypes
+	)
+
+	IF l_round_off_val <= 0 THEN
+	(
+	    l_total_accrual = l_total_accrual - l_round_off_val
+	    accrual = l_total_accrual
+        l_round_off = ROUND(l_total_accrual) - l_total_accrual
+
+        adjustmentvalues[1] = l_round_off
+        adjustmentdates[1]  = GREATEST(iv_accrualperiodstartdate,l_hire_date)
+        adjustmenttypes[1]  = 'ALDAR_ROUNDOFF'
+
+        l_log = ESS_LOG_WRITE(for_name||' Previous Round Off Less than 0')
+        l_log = ESS_LOG_WRITE(for_name||' Accrual   : '||TO_CHAR(accrual))
+        l_log = ESS_LOG_WRITE(for_name||' Round Off : '||TO_CHAR(l_round_off))
+
+        RETURN accrual, adjustmentvalues, adjustmentdates, adjustmenttypes
+	)
+
+)
+
+IF l_curr_covr_val <= 10 THEN
+(
+    l_total_accrual = l_total_accrual - l_round_off_val
+	accrual         = l_total_accrual
+	l_round_off     = ROUND(l_total_accrual) - l_total_accrual
+
+    adjustmentvalues[1] = l_round_off
+    adjustmentdates[1]  = GREATEST(iv_accrualperiodstartdate,l_hire_date)
+    adjustmenttypes[1]  = 'ALDAR_ROUNDOFF'
+
+	l_log = ESS_LOG_WRITE(for_name||' Carryover Less than 10')
+	l_log = ESS_LOG_WRITE(for_name||' Accrual   : '||TO_CHAR(accrual))
+	l_log = ESS_LOG_WRITE(for_name||' Round Off : '||TO_CHAR(l_round_off))
+
+    RETURN accrual, adjustmentvalues, adjustmentdates, adjustmenttypes
+)

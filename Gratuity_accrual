@@ -1,0 +1,463 @@
+/*****************************************************************************
+Formula name: Gratuity accrual
+Formula type: Oracle payroll
+Description : Formula for processing gratuity accrual
+Author      : Amos Langat
+Date        : 16-Dec-2022
+******************************************************************************/
+
+/*****************DATABASE ITEMS ******************************/
+default for PAY_EARN_PERIOD_END is '4712/12/31 00:00:00' (date)
+default for PAY_EARN_PERIOD_START is '1951/01/01 00:00:00' (date)
+default for PAY_ASG_TERMINATION_DATE is '4712/12/31 00:00:00' (date)
+default for PRORATE_START is '0001/01/01 00:00:00' (date)
+default for PRORATE_END is '4712/12/31 00:00:00' (date)
+default for ELEMENT_ENTRY_START_DATE is '0001/01/01 00:00:00' (date)
+default for ELEMENT_ENTRY_END_DATE is '4712/12/31 00:00:00' (date)
+default for ALDAR_TOTAL_UNPAID_DAYS_ASG_ITD is 0
+default for ALDAR_GRATUITY_UNPAID_DAYS_ASG_ITD is 0
+default for PER_PER_TERMINATION_TYPE is 'zz'
+default for PER_PER_TERMINATION_REASON_CODE is 'zz'
+default for PER_PER_TERMINATION_ACTION_CODE is 'zz'
+default for ASG_HR_ASG_ID is 0
+default for ALDAR_GRATUITY_ACCRUED_AMOUNT_ASG_ITD is 0
+default for ALDAR_GRATUITY_ACCRUED_DAYS_ASG_ITD is 0
+default for ALDAR_GRATUITY_ACCRUED_AMOUNT_ASG_RUN is 0
+default for ALDAR_GRATUITY_ACCRUED_DAYS_ASG_RUN is 0
+default for GRATUITY_EOSB_PAYMENT_ASG_ITD        is 0
+default_data_value for BASIC_SALARY_AMOUNT_ENTRY_VALUE is 0
+default for PER_PER_CITIZENSHIP_LEG_NAME is 'none'
+Default for PER_PERSON_ENTERPRISE_HIRE_DATE is '0001/01/01 00:00:00' (DATE)
+
+
+/***************INPUTS ****************************/
+inputs are PRORATE_START(date),
+		   PRORATE_END(date)
+		   
+l_eff_date				= '1951/01/01 00:00:00' (date)
+l_hr_asg_id				= 0
+l_hr_rel_id				= 0 
+l_number				= 0
+l_total_service			= 0
+l_grat_service			= 0
+l_gratuity_accrued_amt	= 0
+l_gratuity_accrued_days	= 0
+l_annual_salary         = 0
+l_grat_to_be_paid       = 0
+l_err_msg               = ' '
+l_gross_salary          = 0
+l_service_days			= 0
+l_band1                 = 30
+l_band2                 = 45
+l_grat_rev              = 0
+l_prorate_start			= prorate_start
+l_prorate_end			= prorate_end
+l_entry_start			= greatest(element_entry_start_date, pay_earn_period_start)
+l_entry_end				= least(element_entry_end_date, pay_earn_period_end)
+l_cur_month_acrl_amt	= ALDAR_GRATUITY_ACCRUED_AMOUNT_ASG_RUN
+l_cur_month_acrl_days	= ALDAR_GRATUITY_ACCRUED_DAYS_ASG_RUN
+l_nationality			= per_per_citizenship_leg_name
+L_EFFECTIVE_DATE        = GET_CONTEXT(EFFECTIVE_DATE,'4712/12/31 00:00:00' (date))
+l_total_absence_days    = ALDAR_TOTAL_UNPAID_DAYS_ASG_ITD
+l_prev_grat_accrued     = ALDAR_GRATUITY_ACCRUED_AMOUNT_ASG_ITD
+l_prev_grat_accrued_days= ALDAR_GRATUITY_ACCRUED_DAYS_ASG_ITD
+l_change_unpaid_days    = ALDAR_GRATUITY_UNPAID_DAYS_ASG_ITD
+l_ter_action_code       = PER_PER_TERMINATION_ACTION_CODE
+l_ter_reason_code       = PER_PER_TERMINATION_REASON_CODE
+l_cur_gratuity_amt      = 0
+l_cur_gratuity_days     = 0
+l_adj_days              = 0
+l_adj_amount            = 0
+l_grat_paid_days        = 0
+l_condition_years       = 0
+l_change_accrued_days   = 0
+l_accrued_days          = 0
+l_change_grat_accr_amt  = 0
+l_accrued_amt           = 0
+l_gratuity_accrued_days = 0
+l_change_service        = 0
+l_notice_days           = 0
+l_days                  = 0
+l_notice_service        = 0
+l_sal_change_basic      = 0
+l_gratuity_paid         = GRATUITY_EOSB_PAYMENT_ASG_ITD
+formula_name            = '[ALDAR Gratuity accrual]'
+l_date                  = '2011/12/31 00:00:00' (date)
+
+l_log = pay_internal_log_write('Enter ALDAR Gratuity Accrual formula ')
+l_log = pay_internal_log_write(formula_name||' : l_prorate_start ' + to_char(l_prorate_start))
+l_log = pay_internal_log_write(formula_name||' : l_prorate_end ' + to_char(l_prorate_end))
+l_log = pay_internal_log_write(formula_name||' : l_entry_start ' + to_char(l_entry_start))
+l_log = pay_internal_log_write(formula_name||' : l_entry_end ' + to_char(l_entry_end))
+l_log = pay_internal_log_write(formula_name||' l_nationality :' + l_nationality)
+
+l_hr_asg_id = ASG_HR_ASG_ID
+l_log = pay_internal_log_write(formula_name||'ASG_HR_ASG_ID :' + to_char(l_hr_asg_id))
+l_eff_date		= least (PAY_ASG_TERMINATION_DATE, PAY_EARN_PERIOD_END)
+
+/*********** Get Period of service ID, REL_ACTUAL_TERMINATION_DATE, REL_DATE_START **************/
+        set_input ('hr_id', l_hr_asg_id)
+		set_input ('eff_date', l_eff_date)
+		set_input ('mode', 'PER_ASG_REL_PERIOD_OF_SERVICE_ID')
+		execute('AE_GET_HR_DATA')
+		l_hr_rel_id = get_output('x_output_number', l_number )
+		l_log = pay_internal_log_write(formula_name||'  l_hr_rel_id'+ to_char(l_hr_rel_id))
+		
+        set_input ('hr_id', l_hr_rel_id)
+		set_input ('eff_date', l_eff_date)
+		set_input ('mode', 'PER_REL_ACTUAL_TERMINATION_DATE')
+		execute('AE_GET_HR_DATA')
+		l_per_rel_actual_termination_date = get_output('x_output', l_eff_date )
+		l_log = pay_internal_log_write(formula_name||'l_per_rel_actual_termination_date '+ to_char(l_per_rel_actual_termination_date))
+
+        set_input ('hr_id', l_hr_rel_id)
+		set_input ('eff_date', l_eff_date)
+		set_input ('mode', 'PER_REL_DATE_START')
+		execute('AE_GET_HR_DATA')
+		
+		l_per_rel_date_start = get_output('x_output', l_eff_date )
+		l_log = pay_internal_log_write(formula_name||' l_per_rel_date_start '+ to_char(l_per_rel_date_start))
+		
+		l_per_rel_date_start = PER_PERSON_ENTERPRISE_HIRE_DATE	
+		l_log = pay_internal_log_write(formula_name||' l_per_rel_date_start '+ to_char(l_per_rel_date_start))
+		
+l_log = pay_internal_log_write(formula_name||'total unpaid absence '+ to_char(l_total_absence_days))
+l_log = pay_internal_log_write(formula_name||'total gratuity accrued Amount '+ to_char(l_prev_grat_accrued))
+l_log = pay_internal_log_write(formula_name||' total gratuity accrued days '+ to_char(l_prev_grat_accrued_days))
+
+/***To get the Person_Number of employee****/
+
+CALL_FORMULA('ALDAR GET HR DATA',
+                 l_hr_asg_id               > 'hr_id',
+                  l_eff_date           > 'eff_date',
+                 'Person Number' 		 > 'mode',
+                 l_Person_number        < 'l_text'  DEFAULT 'X'
+            )
+
+/***To get the business unit of employee****/
+
+CALL_FORMULA('ALDAR GET HR DATA',
+                 l_hr_asg_id               > 'hr_id',
+                  l_eff_date           > 'eff_date',
+                 'Business Unit' 		 > 'mode',
+                 l_Business_unit             < 'l_text'  DEFAULT 'X'
+            )
+			
+
+if  (l_Business_unit = 'ADRES' and  l_Person_number <> '91') then     /*  Moath  */
+
+(
+  l_band1 = 21
+  l_band2 = 30
+)
+
+   
+/***To get the last payment date of employee from work relationship ****/
+
+CALL_FORMULA('ALDAR Get HR Data',  
+                    l_hr_asg_id            > 'hr_id',
+				    l_eff_date             > 'eff_date',
+			        'Last Payment Date'    > 'mode',
+				    l_last_payment_date    < 'l_date'  DEFAULT '4712/12/31 00:00:00' (date)
+			)		
+l_log = pay_internal_log_write(formula_name||'Last payment date '+ to_char(l_last_payment_date,'DD-MM-YYYY'))
+
+l_log = pay_internal_log_write(formula_name||'Employee Business Unit : '||l_Business_unit)
+
+l_log = pay_internal_log_write(formula_name||'Employee Person_number : '||l_Person_number)
+	
+l_last_date   = least(l_last_payment_date,pay_earn_period_end)
+
+l_log = pay_internal_log_write(formula_name||'End date '+ to_char(l_last_date,'DD-MM-YYYY'))
+
+/*** Revised salary date from employment ***/
+CALL_FORMULA('ALDAR Get HR Data',  
+                    l_hr_asg_id            > 'hr_id',
+				    l_eff_date             > 'eff_date',
+			        'Revised Salary Date'  > 'mode',
+				    l_sal_change_date      < 'l_date'  DEFAULT '1951/01/01 00:00:00' (date)
+			)
+			
+l_log = pay_internal_log_write(formula_name||' Salary change date '+ to_char(l_sal_change_date,'DD-MM-YYYY'))
+
+
+
+/************** Get Basic Salary Details for the salary change date*********************/
+
+l_change_date = add_days (l_sal_change_date,-1)
+
+l_log = pay_internal_log_write(formula_name||' Salary change date before date '+ to_char(l_change_date,'DD-MM-YYYY'))
+
+CALL_FORMULA('ALDAR Get HR Data',  
+                    l_hr_asg_id            > 'hr_id',
+				    l_eff_date             > 'eff_date',
+			        'Person Number'  > 'mode',
+				    l_person_number      < 'l_text'  DEFAULT 'X'
+			)
+
+l_log = pay_internal_log_write(formula_name||' Person Number '+ l_person_number)
+
+l_sal_change_basic = TO_NUMBER(GET_TABLE_VALUE('ALDAR_GRATUITY_REDUCED_SALARY','GRATUITY_SALARY',l_person_number,'0'))
+
+
+SET_INPUT('p_eff_date',l_eff_date)
+EXECUTE('ALDAR GET GROSS SALARY')
+l_basic      = GET_OUTPUT('l_basic',0)
+
+l_log = pay_internal_log_write(formula_name||' Basic salary for salary change date'+ to_char(l_sal_change_basic))
+l_log = pay_internal_log_write(formula_name||' Basic salary for current month'+ to_char(l_basic))
+
+
+/********** Total service period with deduction of unpaid days upto termination date or month end date******************/
+
+/** To get the service period for the salary reduced date ***/
+if to_char(l_sal_change_date,'DD-MM-YYYY') <> '01-01-1951' then
+(
+l_change_service = days_between (add_days (least (l_last_date, l_change_date),1), add_days(l_per_rel_date_start,l_change_unpaid_days))/365
+)
+
+l_total_service = days_between (add_days (least (l_last_date, pay_earn_period_end,l_eff_date),1), add_days(l_per_rel_date_start,l_total_absence_days))/365
+l_grat_service	= round(l_total_service,5)
+
+l_change_grat_service = round(l_change_service,5)
+l_log = pay_internal_log_write(formula_name||' l_total_service '+ to_char(l_total_service))
+l_log = pay_internal_log_write(formula_name||' l_grat_service '+ to_char(l_grat_service))
+l_log = pay_internal_log_write(formula_name||' l_change_service '+ to_char(l_change_service))
+l_log = pay_internal_log_write(formula_name||' l_change_grat_service '+ to_char(l_change_grat_service))
+
+l_service_days = days_between (add_days (least (l_last_date, pay_earn_period_end),1), add_days(l_per_rel_date_start,l_total_absence_days))
+l_calendar_days = days_between(pay_earn_period_end,pay_earn_period_start)+1
+
+l_log = pay_internal_log_write(formula_name||' l_service_days '+ to_char(l_service_days))
+l_log = pay_internal_log_write(formula_name||' l_calendar_days '+ to_char(l_calendar_days))
+
+/***********************Termination case loop for notice period days considering -- Starts *********************/
+if PAY_ASG_TERMINATION_DATE was not defaulted and PAY_ASG_TERMINATION_DATE <= PAY_EARN_PERIOD_END then
+(
+     
+	         /** Fetching notice period from the employment **/
+                   CALL_FORMULA('ALDAR Get HR Data',  
+                                l_hr_asg_id               > 'hr_id',
+				                l_eff_date          > 'eff_date',
+			                    'Notice Period'  > 'mode',
+				                l_notice_period          < 'l_number'  DEFAULT 0
+			                   )
+
+                   l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Notice period of the employee: '||TO_CHAR(l_notice_period))
+
+                      /** Fetching notice period UOM from the employment **/
+                      CALL_FORMULA('ALDAR Get HR Data',  
+                                   l_hr_asg_id               > 'hr_id',
+				                   l_eff_date          > 'eff_date',
+			                       'Notice Period UOM'  > 'mode',
+				                   l_notice_period_uom          < 'l_text'  DEFAULT 'X'
+					
+				                  )	
+
+                  l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Notice period UOM of the employee: '||(l_notice_period_uom))
+				
+                   /** Fetching notified termination date of the employee **/
+
+                    CALL_FORMULA('ALDAR Get HR Data',  
+                                 l_hr_asg_id               > 'hr_id',
+				                 l_eff_date          > 'eff_date',
+			                     'Notified Termination date'  > 'mode',
+				                 l_notice_date          < 'l_date'  DEFAULT '4712/12/31 00:00:00' (date)
+					
+				     )	
+                   l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Notification date of the employee : '||TO_CHAR(l_notice_date,'dd-MM-yyyy'))
+				   
+				   /** To get the notice period days for the employee ***/
+				   if l_notice_period_uom = 'D' then
+	                (
+	                  l_notice_days = l_notice_period  
+	                )
+	                else if l_notice_period_uom = 'W' then
+	                (
+	                   l_notice_days = l_notice_period * 7  
+	                )
+	                else if l_notice_period_uom = 'M' then
+	                (
+                     
+					 l_n_date = add_months(pay_asg_termination_date,-1*l_notice_period)
+	                 l_notice_days = days_between(pay_asg_termination_date,l_n_date)
+	              
+	                )
+	                else if l_notice_period_uom = 'Y' then
+	                (
+	                   l_notice_days = l_notice_period * 365 
+	                )
+
+                  l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Notice period days as per employment : '||TO_CHAR(l_notice_days))
+                  
+				  l_actual_notice_date = add_days(pay_asg_termination_date,-l_notice_days)
+
+                  l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Actual notification date as per employment : '||TO_CHAR(l_actual_notice_date,'DD-MM-YYYY'))
+
+                  l_actual_notice_days = days_between(pay_asg_termination_date,l_notice_date)
+
+                  l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Notice period days as per termination: '||TO_CHAR(l_actual_notice_days))
+
+                  l_days = l_notice_days - l_actual_notice_days
+				  
+				  l_notice_service = round(l_days/365,5)
+				  
+				  l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Notice period service days : '||TO_CHAR(l_notice_service))
+	
+)	
+/***********************Termination case loop for notice period days considering -- ends *********************/
+if l_notice_service > 0 then
+(
+l_grat_service = l_grat_service + l_notice_service
+
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Gratuity service Period with notice period: '||TO_CHAR(l_grat_service))
+
+)
+if l_gratuity_paid = 0 then
+(
+/**** Gratuity accrual calculations for the employee whose serivce period is more than 5 years to the date 31-12-2011 ******/
+l_condition_years = ROUND(days_between (add_days (least (l_last_date, l_date),1), (l_per_rel_date_start))/365,5)
+
+l_log = pay_internal_log_write(formula_name||' l_condition_years '+ to_char(l_condition_years))
+
+if l_condition_years > 5 then
+(
+  
+  if to_char(l_sal_change_date,'DD-MM-YYYY') <> '01-01-1951' then
+    (
+      if l_change_grat_service <= 5 then 
+	  (
+	  
+	    l_change_accrued_days = round((l_change_grat_service * l_band1),5)
+	  
+	  )
+	  else if l_change_grat_service >5 and l_change_grat_service <= l_condition_years then
+	  (
+	  
+	  l_change_accrued_days = round((5 * l_band1) + ((l_change_grat_service - 5 ) * 60),5)
+	  
+	  )
+	  else if l_change_grat_service > l_condition_years then
+	  (
+	  
+	  l_change_accrued_days = ROUND( (5* l_band1) + ((l_condition_years - 5)*60) + ((l_change_grat_service- l_condition_years)*l_band2) ,5)
+	  
+	  )
+	  
+      l_log = pay_internal_log_write(formula_name||' l_change_accrued_days in salary reduced condition'+ to_char(l_change_accrued_days))
+  
+    )
+	
+    l_gratuity_accrued_days = ROUND( (5* l_band1) + ((l_condition_years - 5)*60) + ((l_grat_service- l_condition_years)*l_band2) ,5)
+  
+    l_log = pay_internal_log_write(formula_name||' l_gratuity_accrued_days in salary reduced condition'+ to_char(l_gratuity_accrued_days))
+  
+  
+
+)
+else
+(
+
+      /*************************** If service period is less than 5 years then 30 days band ******************/
+	   IF to_char(l_sal_change_date,'DD-MM-YYYY') <> '01-01-1951' then
+	    (
+          if l_change_grat_service <= 5 then
+          (
+	       l_change_accrued_days = ROUND(l_change_grat_service*L_BAND1,5)
+          )
+
+           /******************* If service period is more than 5 years than first 5 years 30 days band and next years 45 days band **/
+           ELSE 
+            (
+             l_change_accrued_days = ROUND( (5* l_band1) + ((l_change_grat_service - 5)*l_band2),5)
+            )
+		
+		    l_log = pay_internal_log_write(formula_name||' l_change_accrued_days '+ to_char(l_change_accrued_days))
+        )
+     /*************************** If service period is less than 5 years then 30 days band ******************/
+        if l_grat_service <= 5 then
+        (
+	     l_accrued_days = ROUND(l_grat_service*L_BAND1,5)
+        )
+
+         /******************* If service period is more than 5 years than first 5 years 30 days band and next years 45 days band **/
+        ELSE 
+        (
+         l_accrued_days = ROUND( (5* l_band1) + ((l_grat_service - 5)*l_band2),5)
+        )
+		
+		l_log = pay_internal_log_write(formula_name||' l_accrued_days '+ to_char(l_accrued_days))
+		
+		l_gratuity_accrued_days = l_accrued_days
+)
+
+    /*************Current month accrued days ****************/
+l_cur_gratuity_days =l_gratuity_accrued_days - l_prev_grat_accrued_days
+
+l_log = pay_internal_log_write(formula_name||' Gratuity Accrued Days upto the month '+ to_char(l_gratuity_accrued_days))
+l_log = pay_internal_log_write(formula_name||' Gratuity Accrued Days for current month '+ to_char(l_cur_gratuity_days))
+l_log = pay_internal_log_write(formula_name||' Gratuity Accrued Days for current month '+ to_char(l_cur_gratuity_days))
+
+
+
+
+/******************Gratuity accrued amount based on salary *****************/
+
+l_change_grat_accr_amt = round(((l_sal_change_basic*12)/365) * l_change_accrued_days,3)
+
+l_accrued_amt = ROUND(((l_basic*12)/365) * (l_gratuity_accrued_days-l_change_accrued_days),3)
+
+l_gratuity_accrued_amt = l_change_grat_accr_amt + l_accrued_amt
+l_cur_gratuity_amt = l_gratuity_accrued_amt - l_prev_grat_accrued
+
+l_log = pay_internal_log_write(formula_name||' Gratuity Accrued Amount Upto Change date '+ to_char(l_change_grat_accr_amt))
+l_log = pay_internal_log_write(formula_name||' Gratuity Accrued Amount after the change date '+ to_char(l_accrued_amt))	
+l_log = pay_internal_log_write(formula_name||' Gratuity Accrued Amount Upto the month '+ to_char(l_gratuity_accrued_amt))
+l_log = pay_internal_log_write(formula_name||' Gratuity Accrued Amount for current month '+ to_char(l_cur_gratuity_amt))
+
+)
+/***********************Termination case loop *********************/
+if PAY_ASG_TERMINATION_DATE was not defaulted and PAY_ASG_TERMINATION_DATE <= PAY_EARN_PERIOD_END and l_gratuity_paid = 0 then
+(
+				  
+             /** If employee leaves the company before 1 year of service period than no payment**/
+                if l_grat_service < 1 then
+	           (
+				 l_log = pay_internal_log_write(formula_name +' Employee Service Period is less than 1 Year')
+				 l_grat_to_be_paid = 0
+	           )
+	
+             /** If employee service period is more than 1 year, the payment paid is min of basic *24 months, Total Accrued amount **/	
+             else 
+		    (
+		
+			  l_log = pay_internal_log_write(formula_name +'If Employee Service Period is more than 1 Year')
+              l_grat_to_be_paid =  (l_gratuity_accrued_days *((l_basic*12)/365))
+			  l_grat_paid_days  =  l_gratuity_accrued_days
+			  
+            )
+			
+       if(l_accrued_amt > 0 and l_sal_change_basic > 0)then 
+	   (
+			l_grat_to_be_paid =  l_gratuity_accrued_amt
+						  l_log = pay_internal_log_write(formula_name||' Gratuity Accrued Days upto the month |ELSE LOOP and IF LOOP| '+ to_char(l_gratuity_accrued_amt))
+	   )
+    
+    
+	
+	/*l_grat_rev =  (l_prev_grat_accrued +l_cur_gratuity_amt) - l_grat_to_be_paid * -1*/
+	
+	l_grat_rev =  ((l_prev_grat_accrued +l_cur_gratuity_amt) - l_grat_to_be_paid) * -1
+	
+	l_adj_amount = (l_prev_grat_accrued +l_cur_gratuity_amt) * -1
+	l_adj_days   = (l_prev_grat_accrued_days+l_cur_gratuity_days) *-1
+	
+
+)
+
+	l_log = pay_internal_log_write(formula_name +' Gratuity payment '+ to_char(l_grat_to_be_paid))
+	l_log = pay_internal_log_write(formula_name +' Gratuity Gain '+ to_char(l_grat_rev))
+	
+return l_gratuity_accrued_days,l_gratuity_accrued_amt,l_total_absence_days,l_cur_gratuity_amt,
+l_cur_gratuity_days,l_grat_service,l_grat_to_be_paid,l_grat_paid_days,l_grat_rev,l_adj_days,l_adj_amount,l_err_msg, 
+l_change_accrued_days, l_change_grat_accr_amt, l_accrued_amt

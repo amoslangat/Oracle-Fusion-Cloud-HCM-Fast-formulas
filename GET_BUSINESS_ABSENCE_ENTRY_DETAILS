@@ -1,0 +1,63 @@
+/*****************************************************************************
+Formula name: GET_BUSINESS_ABSENCE_ENTRY_DETAILS
+Formula type: Payroll Access to HR
+Description :
+Author      : Amos Langat
+Date        : 16-Dec-2022
+******************************************************************************/
+
+
+default for l_sdate is '4712/12/31 00:00:00' (date)
+default for l_edate is '4712/12/31 00:00:00' (date)
+default for l_asg_id is 0
+
+inputs are l_sdate(date),l_edate(date),l_asg_id
+
+formula_name = '[ALDAR_GET_BUSINESS_ABSENCE_ENTRY_DETAILS]'
+l_log = pay_internal_log_write(formula_name||' - Start ')
+l_log = pay_internal_log_write(formula_name||' - l_sdate '||to_char(l_sdate))
+l_log = pay_internal_log_write(formula_name||' - l_edate '||to_char(l_edate))
+l_log = pay_internal_log_write(formula_name||' - l_asg_id '||to_char(l_asg_id))
+
+call_formula('ALDAR_GET_BUSINESS_TRAVEL_ABSENCE_ENTRY_DETAILS',
+				 l_asg_id    > 'L_ASG_ID',
+				 l_sdate    > 'L_SDATE',
+				 l_edate    > 'L_EDATE',
+				 l_hotel_provided < 'l_hotel_provided' default 'x',
+				 l_executive_staff < 'l_executive_staff' default 'x',
+				 l_Onward_flight_travel_hrs < 'l_Onward_flight_travel_hrs' default 'x',
+				 l_Return_flight_travel_hrs < 'l_Return_flight_travel_hrs' default 'x',
+				 
+				 l_event_start_date < 'l_event_start_date' default '4712/12/31 00:00:00' (date),
+				 l_event_end_date < 'l_event_end_date' default '1951/01/01 00:00:00' (date),
+
+				 l_event_start_date_2 < 'l_event_start_date_2' default '4712/12/31 00:00:00' (date),
+				 l_event_end_date_2 < 'l_event_end_date_2' default '1951/01/01 00:00:00' (date),
+
+				 l_event_start_date_3 < 'l_event_start_date_3' default '4712/12/31 00:00:00' (date),
+				 l_event_end_date_3 < 'l_event_end_date_3' default '1951/01/01 00:00:00' (date),
+
+				 l_event_start_date_4 < 'l_event_start_date_4' default '4712/12/31 00:00:00' (date),
+				 l_event_end_date_4 < 'l_event_end_date_4' default '1951/01/01 00:00:00' (date)
+				 )
+	
+l_log = pay_internal_log_write(formula_name||' - l_hotel_provided '||l_hotel_provided)
+l_log = pay_internal_log_write(formula_name||' - l_executive_staff '||l_executive_staff)
+l_log = pay_internal_log_write(formula_name||' - l_Onward_flight_travel_hrs '||l_Onward_flight_travel_hrs)
+l_log = pay_internal_log_write(formula_name||' - l_Return_flight_travel_hrs '||l_Return_flight_travel_hrs)
+
+l_log = pay_internal_log_write(formula_name||' - l_event_start_date '||TO_CHAR(l_event_start_date,'DD-MM-YYYY'))
+l_log = pay_internal_log_write(formula_name||' - l_event_end_date '||TO_CHAR(l_event_end_date,'DD-MM-YYYY'))
+
+l_log = pay_internal_log_write(formula_name||' - l_event_start_date_2 '||TO_CHAR(l_event_start_date_2,'DD-MM-YYYY'))
+l_log = pay_internal_log_write(formula_name||' - l_event_end_date_2 '||TO_CHAR(l_event_end_date_2,'DD-MM-YYYY'))
+
+l_log = pay_internal_log_write(formula_name||' - l_event_start_date_3 '||TO_CHAR(l_event_start_date_3,'DD-MM-YYYY'))
+l_log = pay_internal_log_write(formula_name||' - l_event_end_date_3 '||TO_CHAR(l_event_end_date_3,'DD-MM-YYYY'))
+
+l_log = pay_internal_log_write(formula_name||' - l_event_start_date_4 '||TO_CHAR(l_event_start_date_4,'DD-MM-YYYY'))
+l_log = pay_internal_log_write(formula_name||' - l_event_end_date_4 '||TO_CHAR(l_event_end_date_4,'DD-MM-YYYY'))
+l_log = pay_internal_log_write(formula_name||' - End ')
+
+return  l_hotel_provided, l_executive_staff, l_Onward_flight_travel_hrs, l_event_start_date, l_event_end_date, l_Return_flight_travel_hrs, l_event_start_date_2, l_event_end_date_2,
+ l_event_start_date_3, l_event_end_date_3,  l_event_start_date_4, l_event_end_date_4

@@ -1,0 +1,45 @@
+/*
+****************************************************************************************************
+ Formula Name   : Maternity Leave Entitlement
+ Formula Type   : Global absence plan entitlement
+ 
+ Description    : •	Female employees can avail 60 calendar days of leave with full pay if service is more than 1 year.
+                  •	Female employees can avail 45 calendar days of leave with full pay and 15 calendar days of leave with half pay
+   				    if service is less than 1 year.
+ 
+ Author         : Amos Langat
+ Creation date  : 02-Jan-2023
+ Last update on : 
+*******************************************************************************************************/ 
+default for per_person_enterprise_hire_date is '0001/01/01 00:00:00' (date)
+default for anc_abs_entrs_start_date is '0001/01/01 00:00:00' (date)
+default for acp_hire_date is '0001/01/01 00:00:00' (date) 
+default for acp_termination_date is '4712/12/31 00:00:00' (date)
+default for anc_abs_entrs_absence_type_id is -1
+default_data_value for anc_per_abs_entrs_absence_entry_id_arr is 0
+
+l_absence_type_id		= get_context(absence_type_id,0)
+l_cur_absence_ent_id	= get_context(absence_entry_id,0)
+l_effe_date				= get_context(effective_date,'4712/12/31 00:00:00' (date))
+l_start_date			= acp_hire_date
+l_end_date				= acp_termination_date
+l_service_days			= 0
+formula_name            = '[Aldar Maternity Leave Entitlement]'
+
+l_log = ess_log_write(formula_name||to_char(l_effe_date)||' l_start_date '||to_char(l_start_date))
+l_service_months = months_between(l_effe_date,l_start_date)
+l_log = ess_log_write(formula_name||' l_service_months '||to_char(l_service_months))
+
+if l_service_months >= 12 then
+(
+   band1payfactor   = 100
+   band1entitlement = 60
+ )
+else
+(
+   band1payfactor    = 100
+   band1entitlement  = 45
+   BAND2PAYFACTOR    = 50
+   BAND2ENTITLEMENT  = 15
+)
+return band1payfactor, band1entitlement, BAND2PAYFACTOR, BAND2ENTITLEMENT

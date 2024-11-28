@@ -1,0 +1,42 @@
+/*****************************************************************************
+Formula name: Housing Loan Monitor
+Formula type: Oracle payroll
+Description : 
+Author      : Amos Langat
+Date        : 28-Feb-2023
+******************************************************************************/
+
+DEFAULT FOR PAY_ASG_TERMINATION_DATE is '4712/12/31 00:00:00' (date)
+DEFAULT FOR PAY_EARN_PERIOD_END IS '4712/12/31 00:00:00' (date)
+DEFAULT FOR PAY_EARN_PERIOD_START IS '1951/01/01 00:00:00' (Date)
+DEFAULT FOR ELEMENT_ENTRY_START_DATE IS '1951/01/01 00:00:00' (Date)
+
+formula_name            = '[ALDAR HOUSING LOAN MONITOR]'
+l_person_id			    = get_context(PERSON_ID, 0)
+l_eff_date              = PAY_EARN_PERIOD_START
+l_housing_payment       = 0
+
+ l_log = pay_internal_log_write(formula_name||' entring housing loan starts  ')
+ 
+    l_payment = to_number(get_value_set('ALDAR_HOUSING_LOAN_ENTRY_PAYMENT','|=P_PERSON_ID='''||to_char(l_person_id)
+	                                                                    ||''''||'|P_DATE='''||to_char(l_eff_date,'yyyy-MM-dd')||''''
+																		))
+																		
+    l_input_payment = to_number(get_value_set('ALDAR_HOUSING_LOAN_PAYMENT_START_DATE','|=P_PERSON_ID='''||to_char(l_person_id)
+	                                                                    ||''''||'|P_DATE='''||to_char(l_eff_date,'yyyy-MM-dd')||''''
+																		))
+    l_log = pay_internal_log_write(formula_name||' : Current month loan start ' + to_char(l_payment))
+	l_log = pay_internal_log_write(formula_name||' : Current month loan payment with input value ' + to_char(l_input_payment))
+	
+	l_housing_payment = l_payment
+	
+	if l_housing_payment = 0 then
+	(
+	
+	  l_housing_payment = l_input_payment
+	  l_log = pay_internal_log_write(formula_name||' : payment loop for the input value provided')
+	  
+	)
+ l_log = pay_internal_log_write(formula_name||' : l_housing_payment' + to_char(l_housing_payment))
+ 
+return l_housing_payment

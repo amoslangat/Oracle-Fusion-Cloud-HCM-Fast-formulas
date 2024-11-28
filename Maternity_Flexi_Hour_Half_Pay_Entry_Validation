@@ -1,0 +1,91 @@
+/*
+****************************************************************************************************
+ Formula Name   : Maternity Flexi Hour Half Pay Entry Validation
+ Formula Type   : Global Absence Entry Validation
+ 
+ Description    : •	This leave should be availed in continuation to the Maternity Leave.
+ 
+ Author         : Abdulrahman
+ Creation date  : 03-Jan-2023
+ Last update on : 
+*******************************************************************************************************/ 
+
+DEFAULT_DATA_VALUE FOR anc_per_abs_entrs_absence_entry_id_arr IS 0
+
+DEFAULT FOR ACP_HIRE_DATE                     IS '1951/01/01 00:00:00' (date)
+DEFAULT FOR anc_abs_entrs_start_date          IS '4712/12/31 00:00:00' (date)
+DEFAULT FOR anc_abs_entrs_end_date            IS '4712/12/31 00:00:00' (date)
+DEFAULT FOR anc_abs_entrs_absence_status_cd   IS ' '
+DEFAULT FOR anc_abs_entrs_approval_status_cd  IS ' '
+DEFAULT FOR anc_abs_typ_name                  IS ' '
+DEFAULT FOR anc_abs_entrs_duration            IS 0
+DEFAULT FOR anc_abs_entrs_start_date_duration IS 0
+DEFAULT FOR anc_abs_entrs_end_date_duration   IS 0
+DEFAULT FOR anc_abs_entrs_absence_type_id     IS 0
+
+
+INPUTS ARE iv_end_date       (date), 
+           iv_start_date     (date), 
+		   iv_totalduration  (number)
+
+
+l_leave       =  'Maternity Flexi Hour – Half Pay'
+valid         =  'Y'
+l_date        =  TRUNC(GET_CONTEXT(EFFECTIVE_DATE,'4712/12/31 00:00:00' (date)))
+l_months      = add_months(ACP_HIRE_DATE,3)
+l_ab_start    =  TRUNC(iv_start_date)
+l_ab_end      =  TRUNC(iv_end_date)
+prd_start     =  TO_DATE('1951-01-01','yyyy-MM-dd')
+prd_end       =  TO_DATE('4712-12-31','yyyy-MM-dd')
+l_last_end_date = TO_DATE('4712-12-31','yyyy-MM-dd')
+l_ab_id       =  GET_CONTEXT(ABSENCE_TYPE_ID,0)
+l_start       =  TRUNC(l_date,'yyyy')
+l_end         =  ADD_DAYS(ADD_MONTHS(l_start,12),-1)
+l_duration    =  0
+i             =  1
+l_next_year_duration = 0
+l_abs_entry_id = GET_CONTEXT(ABSENCE_ENTRY_ID, 0)
+l_maternity_leave_exists = 'N'
+
+l_abs_type_id = TO_NUMBER(GET_VALUE_SET('ALDAR_GET_ABSENCE_TYPE_ID','|=P_LEAVE_TYPE='''||'Maternity Leave'||''''))
+
+
+
+CHANGE_CONTEXTS(START_DATE = l_start, END_DATE = l_end)
+(
+    WHILE anc_per_abs_entrs_absence_entry_id_arr.EXISTS(i) LOOP
+    (
+        CHANGE_CONTEXTS(ABSENCE_ENTRY_ID = anc_per_abs_entrs_absence_entry_id_arr[i])
+		(
+		    IF (((anc_abs_entrs_absence_status_cd = 'SUBMITTED' AND anc_abs_entrs_approval_status_cd = 'APPROVED') /*OR*/
+			    /*(anc_abs_entrs_absence_status_cd = 'ORA_WITHDRAWN' AND anc_abs_entrs_approval_status_cd = 'ORA_AWAIT_AWAIT')*/) AND
+			     /*anc_abs_entrs_approval_status_cd <> 'DENIED' AND*/
+			     anc_per_abs_entrs_absence_entry_id_arr[i] <> l_abs_entry_id AND anc_abs_entrs_absence_type_id = 300000003730369 /*Maternity Leave*/)  THEN
+		    (	
+				IF trunc(anc_abs_entrs_end_date) = trunc(ADD_DAYS(iv_start_date,-1)) THEN
+				(
+				    l_maternity_leave_exists = 'Y'
+					
+				)
+							
+		    )
+	    )
+		
+		i = i + 1
+    )
+)
+
+/* Maternity Leave Check Ends */
+
+IF l_maternity_leave_exists = 'N' THEN
+(
+    valid = 'N'
+	error_message = 'ALDAR_MTRL_REMT_ERR2' /*Employee should avail Maternity Flexi Hour Half immediately after the Completion of Maternity Leave.*/
+	token_name[1]  = 'VALUE'
+	token_value[1] = 'Maternity Flexi Hour Half'
+	RETURN valid, error_message, token_name, token_value
+)
+
+
+
+return Valid

@@ -1,0 +1,29 @@
+/*****************************************************************************************************
+ Formula Name   : Probation Confirmed Eligibility
+ Formula Type   : Participation and Rate Eligibility
+ 
+ Description    : Employees are eligible if probation confirmed is yes.
+ 
+ Author         : Amos Langat
+ Creation date  : 20-02-2023
+ Last update on : 17 October by Omer to add Trainee Condition
+*******************************************************************************************************/ 
+
+DEFAULT FOR PER_ASG_ATTRIBUTE11 IS 'N'
+DEFAULT FOR PER_ASG_JOB_NAME IS 'Director'
+
+pro_confirmed = PER_ASG_ATTRIBUTE11
+job_type = PER_ASG_JOB_NAME
+
+
+if pro_confirmed = 'Y' AND job_type != 'Apprentice' then
+(
+ELIGIBLE = 'Y'
+)
+
+else
+(
+ELIGIBLE = 'N'
+)
+
+RETURN ELIGIBLE

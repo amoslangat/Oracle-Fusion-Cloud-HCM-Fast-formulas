@@ -1,0 +1,296 @@
+/****************************************************************
+Formula Name : Transportation Allowance
+Formula Type : Oracle Payroll
+Description  : Transportation allowance is based on people group segment (Pay scale value), grade and nationality of the employee.
+              In Proration condition Consider cal days for feb month and 30 days for other than feb month.
+Author          : Amos Langat
+Date            : 16-Jun-2024
+Last Updated : 
+Version      :           
+***************************************************************/
+
+
+/** DATABASE ITEMS DEFAULT VALUES START **/
+DEFAULT FOR pay_earn_period_start     IS '1951/01/01 00:00:00' (DATE)
+DEFAULT FOR pay_earn_period_end       IS '4712/12/31 00:00:00' (DATE)
+DEFAULT FOR pay_asg_hire_date         IS '1951/01/01 00:00:00' (DATE)
+DEFAULT FOR pay_asg_termination_date  IS '4712/12/31 00:00:00' (DATE)
+DEFAULT FOR prorate_start             IS '1951/01/01 00:00:00' (DATE)
+DEFAULT FOR prorate_end               IS '4712/12/31 00:00:00' (DATE)
+DEFAULT FOR asg_hr_asg_id             IS  0
+DEFAULT FOR Amount                    IS  0
+DEFAULT FOR ELEMENT_ENTRY_START_DATE  IS '4712/12/31 00:00:00' (DATE)
+DEFAULT FOR ELEMENT_ENTRY_END_DATE    IS '4712/12/31 00:00:00' (DATE)
+DEFAULT FOR	TRANSPORTATION_ALLOWANCE_ASG_ITD is 0
+DEFAULT FOR ALDAR_LATE_HIRE_ARREAR_ADJUSTMENT_ASG_ITD IS 0
+DEFAULT FOR TRANSPORTATION_ALLOWANCE_RETROACTIVE_ASG_ITD is 0
+default_data_value for TRANSPORTATION_ALLOWANCE_AMOUNT_ENTRY_VALUE IS 0
+
+				
+
+/** DATABASE ITEMS DEFAULT VALUES END **/
+
+/** INPUT VALUES BEGIN **/
+Inputs are Amount,
+           prorate_start (date),
+		   prorate_end (date)
+/** INPUT VALUES END **/
+
+
+/** LOCAL VARIABLES BEGIN **/
+formula_name          = '[ALDAR Transportation Allowance]'
+hr_id                 = asg_hr_asg_id
+l_cal_days            = DAYS_BETWEEN(pay_earn_period_end, pay_earn_period_start) + 1
+l_start_date          = GREATEST(pay_earn_period_start,pay_asg_hire_date,prorate_start)
+l_end_date            = LEAST(pay_earn_period_end,pay_asg_termination_date,prorate_end)
+l_tot_days            = DAYS_BETWEEN(l_end_date,l_start_date) + 1
+l_date                = least(pay_earn_period_end,ELEMENT_ENTRY_END_DATE, prorate_end)
+l_eligible_amount     = 0
+l_value               = 0
+l_date1               = '1951/01/01 00:00:00' (DATE)
+
+l_balance			  = TRANSPORTATION_ALLOWANCE_ASG_ITD + ALDAR_LATE_HIRE_ARREAR_ADJUSTMENT_ASG_ITD + TRANSPORTATION_ALLOWANCE_RETROACTIVE_ASG_ITD
+/** LOCAL VARIABLES END **/
+
+
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Calendar Days : '||TO_CHAR(l_cal_days))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Total Days    : '||TO_CHAR(l_tot_days))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Prorate Start : '||TO_CHAR(prorate_start,'DD-MM-YYYY'))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Prorate End   : '||TO_CHAR(prorate_end,'DD-MM-YYYY'))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Start Date    : '||TO_CHAR(l_start_date,'DD-MM-YYYY'))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' End Date      : '||TO_CHAR(l_end_date,'DD-MM-YYYY'))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Date          : '||TO_CHAR(l_date,'DD-MM-YYYY'))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Amount        : '||TO_CHAR(Amount))
+
+
+/**Getting Pay Scale of Employee **/
+CALL_FORMULA('ALDAR GET HR DATA',
+                    hr_id          > 'hr_id',
+				    l_date     > 'eff_date',
+			        'Pay Scale'  > 'mode',
+				    l_pay_scale   < 'l_text'  DEFAULT 'X'
+			)		
+
+/**Getting grade of the Employee **/				
+CALL_FORMULA('ALDAR Get HR Data',
+                     hr_id          > 'hr_id',
+				    l_date     > 'eff_date',
+			        'Grade'  > 'mode',
+				    l_grade   < 'l_text'  DEFAULT 'X'
+		  	)
+
+/**Getting if Employee is UAE National or not**/
+CALL_FORMULA('ALDAR GET HR DATA',
+                     hr_id          > 'hr_id',
+				    l_date     > 'eff_date',
+			        'UAE National'  > 'mode',
+				    l_uae_nationality   < 'l_text'  DEFAULT 'X'
+			)				 
+
+/* ==============  Non Proration Month ============== */			 
+if  Amount <> 0 then
+(
+	l_eligible_amount = Amount
+	l_log = ESS_LOG_WRITE(formula_name||'Eligible Amount when Amount is entered: '||to_char(l_eligible_amount))
+)
+else if l_uae_nationality = 'Y' then
+(
+	l_eligible_amount = to_number(GET_TABLE_VALUE('ALDAR_TRANSPORTATION_ALLOWANCE_UAE',l_pay_scale,l_grade,'0'))
+	l_log = ESS_LOG_WRITE(formula_name||'Eligible Amount for UAE National is : '||to_char(l_eligible_amount))
+)
+else
+(
+	l_eligible_amount = to_number(GET_TABLE_VALUE('ALDAR_TRANSPORTATION_ALLOWANCE_EXPAT',l_pay_scale,l_grade,'0'))
+	l_log = ESS_LOG_WRITE(formula_name||'Eligible Amount for Expat is : '||to_char(l_eligible_amount))
+)
+		   
+		   
+l_amount = l_eligible_amount
+
+l_value  = round((l_amount/l_cal_days) * l_tot_days,3)
+		   
+
+/* ========== Proration Month Starts =========== */	
+L_trans_change = 'N'
+
+if ((LAST_DAY (pay_earn_period_start) = LAST_DAY (pay_asg_hire_date) and pay_asg_hire_date <> pay_earn_period_start) or 
+	(LAST_DAY (pay_earn_period_end) = LAST_DAY (pay_asg_termination_date) and pay_asg_termination_date <> pay_earn_period_end)) then
+(
+	L_trans_change = 'Y'
+	l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Joining/ Termination Month Proration : '|| L_trans_change)
+
+)
+else if (prorate_start was not defaulted or prorate_end was not defaulted) then
+(
+	l_eligible_amount_val = 0
+	l_eligible_amount_ref = 0
+
+	l_loop_start = greatest(pay_earn_period_start, pay_asg_hire_date)
+	l_loop_end   = least (pay_earn_period_end, pay_asg_termination_date)
+	
+	WHILE ((l_loop_start <= l_loop_end) AND (L_trans_change <> 'Y')) LOOP
+	(
+		l_date1 = l_loop_start
+		l_eligible_amount_val = 0
+		l_eligible_amount_ref = 0
+    
+		CALL_FORMULA('ALDAR GET HR DATA',
+                    hr_id          > 'hr_id',
+				    l_date1     > 'eff_date',
+			        'Pay Scale'  > 'mode',
+				    l_pay_scale   < 'l_text'  DEFAULT 'X'
+			)		
+
+		
+		CALL_FORMULA('ALDAR Get HR Data',
+                     hr_id          > 'hr_id',
+				    l_date1     > 'eff_date',
+			        'Grade'  > 'mode',
+				    l_grade   < 'l_text'  DEFAULT 'X'
+		  	 )
+			 
+		CALL_FORMULA('ALDAR GET HR DATA',
+                     hr_id          > 'hr_id',
+				    l_date1     > 'eff_date',
+			        'UAE National'  > 'mode',
+				    l_uae_nationality   < 'l_text'  DEFAULT 'X'
+			)	
+			
+	
+		k = 1
+		CHANGE_CONTEXTS(date_earned = l_date1) 
+		( 
+			WHILE (TRANSPORTATION_ALLOWANCE_AMOUNT_ENTRY_VALUE.EXISTS (k)) LOOP
+			(
+				IF TRANSPORTATION_ALLOWANCE_AMOUNT_ENTRY_VALUE[k] > 0 THEN
+				(
+					l_eligible_amount_ref = TRANSPORTATION_ALLOWANCE_AMOUNT_ENTRY_VALUE[k]
+					l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Transportation l_eligible_amount_ref : '||to_char(l_eligible_amount_ref))
+					EXIT
+				)
+				k = k + 1
+			)
+		)
+
+		if l_eligible_amount_ref <> 0 then
+		(
+			l_eligible_amount_val = l_eligible_amount_ref
+		)			
+		else if l_uae_nationality = 'Y' then
+		(
+			l_eligible_amount_val = to_number(GET_TABLE_VALUE('ALDAR_TRANSPORTATION_ALLOWANCE_UAE',l_pay_scale,l_grade,'0'))
+		)
+		else
+		(
+			l_eligible_amount_val = to_number(GET_TABLE_VALUE('ALDAR_TRANSPORTATION_ALLOWANCE_EXPAT',l_pay_scale,l_grade,'0'))
+		)
+		   
+		   
+		l_cur = l_eligible_amount_val
+
+		l_log = ESS_LOG_WRITE(formula_name||'Transportation l_cur :'||to_char(l_cur))
+		l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Transportation l_amount : '||to_char(l_amount))
+		l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Loop Start : '||to_char(l_loop_start))
+		
+			
+		IF l_amount <> l_cur THEN
+		(
+			 L_trans_change = 'Y'
+			 l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Transportation is : '|| L_trans_change)
+			 l_log = ESS_LOG_WRITE(formula_name||' Transportation l_cur :'||to_char(l_cur))
+			 l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Transportation l_amount : '||to_char(l_amount))
+			 l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Loop Start : '||to_char(l_loop_start))
+			 
+		)
+					
+		l_loop_start = ADD_DAYS(l_loop_start,1)
+    )
+)
+
+
+
+if ((prorate_start was not defaulted or prorate_end was not defaulted)  and L_trans_change = 'Y') then
+(
+	l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Entering Proration Loop')
+	l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Proration month ' || to_char(prorate_start,'MON-RRRR'))
+
+	if to_char(prorate_start,'MM') = '02' then
+	(   
+	
+		l_log = PAY_INTERNAL_LOG_WRITE('Entering loop if proration month is feb')	
+		l_value  = round((l_amount/l_cal_days) * l_tot_days,3)
+	)
+	else
+	(
+		l_log = PAY_INTERNAL_LOG_WRITE('Entering loop if proration month other than feb')
+		l_value  = round((l_amount/30) * l_tot_days,3)
+	
+	)
+)
+
+/* ============ Proration Month Ends =========== */
+
+l_value = round(l_value)
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Pay Value     : '||TO_CHAR(l_value))
+
+
+
+/******************************************* start Arrears Calcultion ******************************************************/
+
+l_Actual_start = Greatest ( pay_asg_hire_date, ELEMENT_ENTRY_START_DATE )
+l_start_date = Greatest(pay_asg_hire_date, PAY_EARN_PERIOD_START )
+
+l_p_months			= 0
+l_remaining_pay 	= 0
+l_pending_days		= 0
+l_mon_total_days	= 0
+
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' l_balance'||to_char( l_balance))
+if l_balance = 0 and l_Actual_start < l_start_date Then
+(
+	l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Arrears Calcultion ')
+	/* calculating arrears for element when start date is not 1st of the MONTH */
+	IF l_Actual_start <> trunc( l_Actual_start,'mm') THEN
+	(
+		l_p_months = MONTHS_BETWEEN( l_start_date, l_Actual_start)
+		if l_p_months > 1 THEN
+		(
+			l_months = trunc( l_p_months )
+			l_remaining_pay = l_months*l_amount
+		)
+		
+		l_pending_days = days_between( LAST_DAY( l_Actual_start), l_Actual_start )+1
+		l_mon_total_days = days_between(last_day( l_Actual_start ),trunc( l_Actual_start,'mm'))+1
+		
+		IF TO_CHAR( l_Actual_start , 'MM') = '02' THEN
+		(	
+			l_remaining_pay = ROUND(l_amount*( l_pending_days/l_mon_total_days),3) + l_remaining_pay /* for feb considering calender days */
+		)
+		ELSE
+		(
+			l_remaining_pay = ROUND(l_amount*( l_pending_days/30),3) + l_remaining_pay				/*  for remaining months calculating on 30 days */
+		)
+		l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Arrears pay value'|| TO_CHAR( l_remaining_pay))		
+	)
+	ELSE
+	(
+			/* when element is started on 1st of any month then considering full amount */
+			l_p_months = MONTHS_BETWEEN( l_start_date, l_Actual_start)
+			l_months =  l_p_months 
+			l_remaining_pay = l_months*l_amount
+			l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Arrears pay value'|| TO_CHAR( l_remaining_pay))
+	
+	)
+	
+	l_remaining_pay = round(l_remaining_pay)
+
+)
+/***********************************************end arrear calculations *****************************************/
+
+
+if Amount <> 0 then
+(
+	return l_value, l_remaining_pay
+)
+
+return l_value, l_uae_nationality, l_eligible_amount, l_pay_scale, l_grade  ,l_remaining_pay

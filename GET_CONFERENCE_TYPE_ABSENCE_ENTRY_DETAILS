@@ -1,0 +1,68 @@
+/* ****************************************************************************
+Formula name: GET_CONFERENCE_TYPE_ABSENCE_ENTRY_DETAILS
+Formula type: Global Absence Entry Validation
+Description :
+Author      : Abdulrahman Mohammed
+Date        : 23-01-2023
+******************************************************************************/
+
+
+
+default for l_sdate is '4712/12/31 00:00:00' (date)
+default for l_edate is '4712/12/31 00:00:00' (date)
+default for l_asg_id is 0
+default for l_per_id is 0
+default for l_pln_name is 'xx'
+default for anc_abs_entrs_absence_type_id is -1
+default for anc_abs_entrs_duration is 0
+default_data_value for anc_per_abs_entrs_absence_entry_id_arr is 0
+default for anc_abs_entrs_absence_status_cd is 'zz'
+default for anc_abs_entrs_approval_status_cd is 'zz'
+
+default for anc_abs_entrs_start_date is '4712/12/31 00:00:00' (date)
+default for anc_abs_entrs_end_date is '4712/12/31 00:00:00' (date)
+default for ASG_HR_ASG_ID is 0
+default for ANC_ABS_ENTRS_ATTRIBUTE2 is 'X'
+
+
+
+inputs are l_sdate(date),l_edate(date),l_asg_id,l_per_id,l_pln_name
+
+formula_name = 'ALDAR_GET_CONFERENCE_TYPE_ABSENCE_ENTRY_DETAILS'
+l_log = pay_internal_log_write(formula_name||' - l_sdate '||to_char(l_sdate))
+l_log = pay_internal_log_write(formula_name||' - l_edate '||to_char(l_edate))
+l_log = pay_internal_log_write(formula_name||' - l_asg_id '||to_char(l_asg_id))
+l_log = pay_internal_log_write(formula_name||' - l_per_id '||to_char(l_per_id))
+l_log = pay_internal_log_write(formula_name||' - l_pln_name '||l_pln_name)
+
+change_contexts(hr_assignment_id = l_asg_id, effective_date = l_edate, start_date = l_sdate, end_date = l_edate)
+(
+	i = 1
+
+	while anc_per_abs_entrs_absence_entry_id_arr.exists(i) loop
+	(
+		change_contexts (absence_entry_id = anc_per_abs_entrs_absence_entry_id_arr[i])
+		(
+			IF (ANC_ABS_ENTRS_ABSENCE_STATUS_CD = 'SUBMITTED' or ANC_ABS_ENTRS_ABSENCE_STATUS_CD = 'ORA_WITHDRAWN' and ANC_ABS_ENTRS_APPROVAL_STATUS_CD = 'ORA_AWAIT_AWAIT') 
+			    and ANC_ABS_ENTRS_APPROVAL_STATUS_CD <> 'DENIED' 
+                and anc_abs_entrs_absence_type_id = 300000006252326/*Conference Leave*/	THEN
+			(
+                 
+				 l_Con_type          = ANC_ABS_ENTRS_ATTRIBUTE2
+				
+				 l_log = pay_internal_log_write(formula_name||' - l_Con_type '||to_char(i)||' - '||(l_Con_type))
+			
+				 
+				 
+			)
+					
+			i = i + 1
+		)
+	 )
+)
+
+l_log = pay_internal_log_write(formula_name||' - l_Con_type '||(l_Con_type))
+
+l_log = pay_internal_log_write(formula_name||' - end ')
+
+return l_Con_type

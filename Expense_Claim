@@ -1,0 +1,54 @@
+/***************************************************************
+Formula Name : Expense Claim
+Formula Type : Oracle Payroll
+Description  : 
+Author       : Amos Langat
+Date         : 3-Dec-2022         
+***************************************************************/
+
+Default for Amount                is  0
+Default for Expense_Claim_Type    is 'X'
+
+
+Inputs are Amount,
+           Expense_Claim_Type(text)
+		   
+
+l_amount        = Amount
+formula_name    =  '[Expense Claim Request]'
+
+l_value_covid    = 0
+l_value_training = 0
+l_value_medical  = 0
+l_value_other    = 0
+
+
+if Expense_Claim_Type = 'ALDAR_COVID' then
+(	
+	l_value_covid = l_amount
+	l_log = pay_internal_log_write(formula_name +' : Expense Claim Type ' || Expense_Claim_Type)
+	l_log = pay_internal_log_write(formula_name +' : Expense Claim Amount for Covid ' || to_char(l_value_covid))
+)
+
+if Expense_Claim_Type = 'ALDAR_TRAIN' then
+(	
+	l_value_training = l_amount
+	l_log = pay_internal_log_write(formula_name +' : Expense Claim Type ' || Expense_Claim_Type)
+	l_log = pay_internal_log_write(formula_name +' : Expense Claim Amount for Training ' || to_char(l_value_training))
+)
+
+if Expense_Claim_Type = 'ALDAR_VISA_MED' then
+(	
+	l_value_medical = l_amount
+	l_log = pay_internal_log_write(formula_name +' : Expense Claim Type ' || Expense_Claim_Type)
+	l_log = pay_internal_log_write(formula_name +' : Expense Claim Amount for Visa medical expenses ' || to_char(l_value_medical))
+)
+
+if Expense_Claim_Type = 'ALDAR_OTHER' then
+(	
+	l_value_other = l_amount
+	l_log = pay_internal_log_write(formula_name +' : Expense Claim Type ' || Expense_Claim_Type)
+	l_log = pay_internal_log_write(formula_name +' : Expense Claim Amount for Other ' || to_char(l_value_other))
+)
+
+return l_value_covid, l_value_training, l_value_medical, l_value_other

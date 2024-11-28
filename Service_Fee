@@ -1,0 +1,144 @@
+/***************************************************************
+Formula Name : Service Fee
+Formula Type : Oracle Payroll
+Description  :
+Author          : Amos Langat
+Date            : 16-Jun-2024
+Last Updated : 
+Version      :           
+***************************************************************/
+
+/** DATABASE ITEMS DEFAULT VALUES START **/
+DEFAULT FOR pay_earn_period_start     IS '1951/01/01 00:00:00' (DATE)
+DEFAULT FOR pay_earn_period_end       IS '4712/12/31 00:00:00' (DATE)
+DEFAULT FOR pay_asg_hire_date         IS '1951/01/01 00:00:00' (DATE)
+DEFAULT FOR pay_asg_termination_date  IS '4712/12/31 00:00:00' (DATE)
+DEFAULT FOR prorate_start             IS '1951/01/01 00:00:00' (DATE)
+DEFAULT FOR prorate_end               IS '4712/12/31 00:00:00' (DATE)
+DEFAULT_DATA_VALUE FOR SERVICE_FEE_AMOUNT_ENTRY_VALUE IS 0
+/** DATABASE ITEMS DEFAULT VALUES END **/
+
+
+/** INPUT VALUES BEGIN **/
+Inputs are Amount,
+           prorate_start (date),
+		   prorate_end (date)
+/** INPUT VALUES END **/
+
+
+/** LOCAL VARIABLES BEGIN **/
+l_cal_days            = DAYS_BETWEEN(pay_earn_period_end, pay_earn_period_start) + 1
+l_start_date          = GREATEST(pay_earn_period_start,pay_asg_hire_date,prorate_start)
+l_end_date            = LEAST(pay_earn_period_end,pay_asg_termination_date,prorate_end)
+l_tot_days            = DAYS_BETWEEN(l_end_date,l_start_date) + 1
+l_value               = 0
+formula_name          = '[ALDAR Service Fee]'
+/** LOCAL VARIABLES END **/
+
+
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Calendar Days : '||TO_CHAR(l_cal_days))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Total Days    : '||TO_CHAR(l_tot_days))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Prorate Start : '||TO_CHAR(prorate_start,'DD-MM-YYYY'))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Prorate End   : '||TO_CHAR(prorate_end,'DD-MM-YYYY'))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Start Date    : '||TO_CHAR(l_start_date,'DD-MM-YYYY'))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' End Date      : '||TO_CHAR(l_end_date,'DD-MM-YYYY'))
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Amount     : '||TO_CHAR(Amount))
+
+
+l_amount = Amount
+l_sal_change = 'N'
+l_current    = 0
+l_reference  = 0
+l_value  = round((l_amount/l_cal_days) * l_tot_days,3)
+
+k = 1
+
+CHANGE_CONTEXTS(date_earned = pay_earn_period_start) 
+( 
+	WHILE (SERVICE_FEE_AMOUNT_ENTRY_VALUE.EXISTS (k)) LOOP
+	(
+		IF SERVICE_FEE_AMOUNT_ENTRY_VALUE[k] > 0 THEN
+		(
+			l_reference = SERVICE_FEE_AMOUNT_ENTRY_VALUE[k]
+			
+            l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Reference Special Business allowance Amount is '||TO_CHAR(l_reference))
+			
+			EXIT
+		)
+		 k = k + 1
+	)
+)
+
+l_loop_start = ADD_DAYS(pay_earn_period_start,1)
+l_loop_end   = pay_earn_period_end
+
+if (prorate_start was not defaulted or prorate_end was not defaulted) then
+(
+WHILE ((l_loop_start <= l_loop_end) AND (l_sal_change <> 'Y')) LOOP
+(
+    k = 1
+
+    CHANGE_CONTEXTS(date_earned = l_loop_start) 
+    ( 
+	    WHILE (SERVICE_FEE_AMOUNT_ENTRY_VALUE.EXISTS (k)) LOOP
+	    (
+		    IF SERVICE_FEE_AMOUNT_ENTRY_VALUE[k] > 0 THEN
+		    (
+			    l_current = SERVICE_FEE_AMOUNT_ENTRY_VALUE[k]
+			
+                l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Special Business allowance Amount is '||TO_CHAR(l_current))
+		    )
+			
+			IF l_reference <> l_current THEN
+			(
+			    l_sal_change = 'Y'
+				
+				l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Salary Change Flag is : '||l_sal_change)
+				
+			)
+			
+			k = k + 1
+	    )
+    )
+    
+	l_loop_start = ADD_DAYS(l_loop_start,1)
+)
+)
+if ((LAST_DAY (pay_earn_period_start) = LAST_DAY (pay_asg_hire_date) and pay_asg_hire_date <> pay_earn_period_start) or 
+     (LAST_DAY (pay_earn_period_end) = LAST_DAY (pay_asg_termination_date) and pay_asg_termination_date <> pay_earn_period_end)) then
+        (
+	l_sal_change = 'Y'
+	l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Joining/ Termination Month Proration : '|| l_sal_change)
+
+        )
+if (prorate_start was not defaulted or prorate_end was not defaulted) and l_sal_change = 'Y' then
+ (
+
+  l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Entering Proration Loop')
+  l_log = PAY_INTERNAL_LOG_WRITE(formula_name||'Proration month' || to_char(prorate_start,'MM'))
+
+  if to_char(prorate_start,'MM') = '02' then
+    (   
+	
+	l_log = PAY_INTERNAL_LOG_WRITE('Entering loop if proration month is feb')
+	
+     l_value  = round((l_amount/l_cal_days) * l_tot_days,3)
+	 
+    )
+	else
+	(
+	
+	 l_log = PAY_INTERNAL_LOG_WRITE('Entering loop if proration month other than feb')
+	
+     l_value  = round((l_amount/30) * l_tot_days,3)
+	
+	)
+
+)
+
+
+
+l_log = PAY_INTERNAL_LOG_WRITE(formula_name||' Pay Value     : '||TO_CHAR(l_value))
+
+
+return l_value 

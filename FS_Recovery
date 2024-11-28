@@ -1,0 +1,36 @@
+/*****************************************************************************
+Formula name: FS Recovery
+Formula type: Oracle payroll
+Description : 
+Author      : Amos Langat
+Date        : 26-04-2023
+******************************************************************************/
+
+
+DEFAULT FOR FS_ADVANCE_REL_ITD is 0
+
+l_value = 0
+
+
+l_element_entry_id      = GET_CONTEXT(ELEMENT_ENTRY_ID, 0)
+p_element_entry_id      = TO_CHAR(l_element_entry_id)
+
+
+if l_element_entry_id > 0 then
+( 
+CHANGE_CONTEXTS(REFERENCE_CODE	= p_element_entry_id)
+	(
+	
+	l_log = pay_internal_log_write('REFERENCE Block')
+		l_value = ALDAR_FS_ADVANCE_REL_ITD
+		
+	 )
+	 
+)
+
+
+
+l_log = pay_internal_log_write('l_value -' || To_char(l_value))
+
+    
+return l_value

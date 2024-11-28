@@ -1,0 +1,137 @@
+/*
+****************************************************************************************************
+ Formula Name   : Remote Working Entry Validation
+ Formula Type   : Global Absence Entry Validation
+ 
+ Description    : •	Employees are eligible for work from home for a period of 30 working days in a calendar year.
+                  •	Remote working should be allowed Max. of 10 days at a time.
+                  •	Should allow max. of 5 days during the probation of the employee or first 3 months of service
+		  •	Employee should apply at least a day before for the Remote Working
+ 
+ Author         : Amos Langat
+ Creation date  : 30-Dec-2023
+ Last update on : 
+*******************************************************************************************************/ 
+
+DEFAULT_DATA_VALUE FOR anc_per_abs_entrs_absence_entry_id_arr IS 0
+DEFAULT FOR PER_ASG_ATTRIBUTE11 is 'N'
+DEFAULT FOR ACP_HIRE_DATE                     IS '1951/01/01 00:00:00' (date)
+DEFAULT FOR anc_abs_entrs_start_date          IS '4712/12/31 00:00:00' (date)
+DEFAULT FOR anc_abs_entrs_end_date            IS '4712/12/31 00:00:00' (date)
+DEFAULT FOR anc_abs_entrs_absence_status_cd   IS ' '
+DEFAULT FOR anc_abs_entrs_approval_status_cd  IS ' '
+DEFAULT FOR anc_abs_typ_name                  IS ' '
+DEFAULT FOR anc_abs_entrs_duration            IS 0
+DEFAULT FOR anc_abs_entrs_start_date_duration IS 0
+DEFAULT FOR anc_abs_entrs_end_date_duration   IS 0
+DEFAULT FOR anc_abs_entrs_absence_type_id     IS 0
+
+INPUTS ARE iv_end_date       (date), 
+           iv_start_date     (date), 
+		   iv_totalduration  (number)
+
+
+l_leave       =  'Remote Working'
+valid         =  'Y'
+l_date        =  TRUNC(GET_CONTEXT(EFFECTIVE_DATE,'4712/12/31 00:00:00' (date)))
+l_probation   = PER_ASG_ATTRIBUTE11
+l_months      = add_months(ACP_HIRE_DATE,3)
+l_ab_start    =  TRUNC(iv_start_date)
+l_ab_end      =  TRUNC(iv_end_date)
+prd_start     =  TO_DATE('1951-01-01','yyyy-MM-dd')
+prd_end       =  TO_DATE('4712-12-31','yyyy-MM-dd')
+l_ab_id       =  GET_CONTEXT(ABSENCE_TYPE_ID,0)
+l_start       =  TRUNC(l_date,'yyyy')
+l_end         =  ADD_DAYS(ADD_MONTHS(l_start,12),-1)
+l_leave       =  'Sick Leave'
+valid         =  'Y'
+l_duration    =  0
+i             =  1
+l_next_year_duration = 0
+l_absence_entry_id	= TO_CHAR(GET_CONTEXT(ABSENCE_ENTRY_ID,0))
+l_absence_start_date = to_date(TO_CHAR(iv_start_date,'DD-MM-YYYY'),'DD-MM-YYYY')
+
+l_abs_type_id = TO_NUMBER(GET_VALUE_SET('ALDAR_GET_ABSENCE_TYPE_ID','|=P_LEAVE_TYPE='''||'Remote Working'||''''))
+
+l_sysdate     = TO_DATE(GET_VALUE_SET('ALDAR_DATE'),'DD-MM-YYYY')
+
+CHANGE_CONTEXTS(START_DATE = prd_start, END_DATE = prd_end)
+(
+    WHILE anc_per_abs_entrs_absence_entry_id_arr.EXISTS(i) LOOP
+    (
+        CHANGE_CONTEXTS(ABSENCE_ENTRY_ID = anc_per_abs_entrs_absence_entry_id_arr[i])
+        (
+            CHANGE_CONTEXTS(ABSENCE_TYPE_ID = l_ab_id)
+            ( 
+	  
+	            /*if Absence status is SUBMITTED Then approval status should be either APPROVED/AWAITING
+		        and if absence status is WITHDRAWN then approval status should be ORA_AWAIT_AWAIT*/
+		 
+	            IF ((ANC_ABS_ENTRS_ABSENCE_TYPE_ID = l_abs_type_id) /*Remote Working*/
+				AND ((anc_abs_entrs_absence_status_cd = 'SUBMITTED' AND 
+		            (anc_abs_entrs_approval_status_cd = 'APPROVED' OR anc_abs_entrs_approval_status_cd = 'AWAITING')) OR
+                    (anc_abs_entrs_absence_status_cd = 'ORA_WITHDRAWN' AND anc_abs_entrs_approval_status_cd = 'ORA_AWAIT_AWAIT')) 
+		           AND anc_per_abs_entrs_absence_entry_id_arr[i] <> TO_NUMBER(l_absence_entry_id)) THEN
+		        ( 
+		            /* To get Absences in the effective date year */
+			
+		            IF (anc_abs_entrs_start_date <= l_end and anc_abs_entrs_end_date >= l_start) THEN
+		            (
+		                l_duration = l_duration + (DAYS_BETWEEN(least(TRUNC(anc_abs_entrs_end_date),TRUNC(l_end)),GREATEST(TRUNC(anc_abs_entrs_start_date),TRUNC(l_start)))+1)
+		            )	
+		            
+		        )		  
+	        )	    
+	    )
+		
+        i=i+1
+    )
+)
+
+/* Fetches Current Absence Duration */
+l_present_duration = DAYS_BETWEEN(LEAST(TRUNC(iv_end_date),TRUNC(l_end)),GREATEST(TRUNC(iv_start_date),TRUNC(l_start)))+1
+
+l_eligible = 15
+
+IF ( (l_ab_start >= l_start AND l_ab_start <= l_end) AND l_ab_end > l_end )  THEN
+(
+	l_next_year_duration = DAYS_BETWEEN (TRUNC(l_ab_end),ADD_DAYS(TRUNC(l_end),1))+1
+	
+	IF (l_next_year_duration > l_eligible) THEN
+	(
+	   l_bal = l_eligible - l_next_year_duration
+
+		valid = 'N'
+        error_message  = 'ALDAR_REMOTE_ERR3' /*Remote Working Leave is limited to a maximum of 30 days per year. Your remaining entitlement is {REM_BAL} days.*/
+        token_name[1]  = 'REM_BAL'
+        token_value[1] = to_char(l_bal)
+
+        RETURN VALID,error_message,token_name,token_value
+	)
+)
+
+
+l_total = l_duration + l_present_duration
+l_bal = l_eligible - l_duration
+
+
+IF (l_total > l_eligible) THEN
+(
+    valid = 'N'
+    error_message  = 'ALDAR_REMOTE_ERR3' /*Remote Working Leave is limited to a maximum of 30 days per year. Your remaining entitlement is {REM_BAL} days.*/
+    token_name[1]  = 'REM_BAL'
+    token_value[1] = TO_CHAR(l_bal)
+    
+    RETURN VALID,error_message,token_name,token_value
+)
+IF (iv_totalduration > 5) THEN
+(
+    valid = 'N'
+    error_message  = 'ALDAR_REMOTE_ERR' /*Employee can avail maximum of 10 days for an instance.*/
+    token_name[1]  = 'BAL'
+    token_value[1] = '10'
+    
+    RETURN VALID,error_message,token_name,token_value
+)
+
+RETURN valid

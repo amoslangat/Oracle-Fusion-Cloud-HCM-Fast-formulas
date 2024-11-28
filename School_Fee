@@ -1,0 +1,43 @@
+/***************************************************************
+Formula Name : School Fee
+Formula Type : Oracle Payroll
+Description  : 
+Author          : Amos Langat
+Date            : 16-Jun-2024
+Last Updated : 
+Version      :           
+***************************************************************/
+
+Default FOR Current_Request_Amount IS 0
+Default for Academic_Year           is 'X'
+DEFAULT FOR Child_Name              IS 'X'
+DEFAULT FOR ALDAR_SCHOOL_FEE_ASG_RC_ITD IS 0
+
+Inputs are Current_Request_Amount,
+           Academic_Year,
+		   Child_Name
+		   
+		   
+l_amount = Current_Request_Amount
+l_child_name = Child_Name
+l_academic_year = Academic_Year
+formula_name    =  '[School Fee]'
+l_payment_amount = 0
+
+l_child_number = (GET_VALUE_SET('ALDAR_CHILD_CONTACT_NUMBER','|=CHILD_NAME='''||l_child_name||''''))
+
+l_log = pay_internal_log_write(formula_name +' :Child Number from value set' || (l_child_number))
+
+l_reference_academic_year = l_academic_year||'-'|| l_child_number
+
+l_log = pay_internal_log_write(formula_name +' : Reference Code' || (l_reference_academic_year))
+
+
+ CHANGE_CONTEXTS(REFERENCE_CODE	= (l_reference_academic_year))
+		    (
+			
+			 l_payment_amount  = ALDAR_SCHOOL_FEE_ASG_RC_ITD
+		    )
+			
+			l_payment_amount = l_payment_amount + l_amount
+return l_amount,l_reference_academic_year,l_payment_amount

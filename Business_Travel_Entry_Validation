@@ -1,0 +1,111 @@
+/*****************************************************************************
+Formula name: Business Travel Entry Validation
+Formula type: Global Absence Entry Validation
+Description :
+Author      : Amos Langat
+Date        : 15-Dec-2022
+******************************************************************************/
+
+
+/** DATABASE ITEMS DEFAULT VALUES START **/
+DEFAULT FOR IV_ATTRIBUTE_2 IS 'XX' 
+
+DEFAULT FOR IV_ATTRIBUTE_5 IS 'XX' /** Destination Country **/
+DEFAULT FOR IV_ATTRIBUTE_17 IS 'XX' /** Destination City **/
+DEFAULT FOR IV_ATTRIBUTE_7 IS 'XX' /**In Flight Travel Hours **/
+DEFAULT FOR IV_ATTRIBUTE_DATE1 IS '4712/12/31 00:00:00' (date) /**Business Event Start Date **/
+DEFAULT FOR IV_ATTRIBUTE_DATE2 IS '4712/12/31 00:00:00' (date) /**Business Event End Date **/
+DEFAULT FOR IV_ATTRIBUTE_8 IS 'XX' /** Destination Country 2 **/
+DEFAULT FOR IV_ATTRIBUTE_9 IS 'XX' /** Destination City 2 **/
+DEFAULT FOR IV_ATTRIBUTE_10 IS 'XX' /**In Flight Travel Hours 2 **/
+DEFAULT FOR IV_ATTRIBUTE_DATE3 IS '4712/12/31 00:00:00' (date) /**Business Event Start Date 2 **/
+DEFAULT FOR IV_ATTRIBUTE_DATE4 IS '4712/12/31 00:00:00' (date) /**Business Event End Date 2 **/
+DEFAULT FOR IV_ATTRIBUTE_11 IS 'XX' /** Destination Country 3 **/
+DEFAULT FOR IV_ATTRIBUTE_12 IS 'XX' /** Destination City 3 **/
+DEFAULT FOR IV_ATTRIBUTE_13 IS 'XX' /**In Flight Travel Hours 3 **/
+DEFAULT FOR IV_ATTRIBUTE_DATE5 IS '4712/12/31 00:00:00' (date) /**Business Event Start Date 3 **/
+DEFAULT FOR IV_ATTRIBUTE_DATE6 IS '4712/12/31 00:00:00' (date) /**Business Event End Date 3 **/
+DEFAULT FOR IV_ATTRIBUTE_14 IS 'XX' /** Destination Country 4 **/
+DEFAULT FOR IV_ATTRIBUTE_15 IS 'XX' /** Destination City 4 **/
+DEFAULT FOR IV_ATTRIBUTE_16 IS 'XX' /**In Flight Travel Hours 4 **/
+DEFAULT FOR IV_ATTRIBUTE_DATE7 IS '4712/12/31 00:00:00' (date) /**Business Event Start Date 4 **/
+DEFAULT FOR IV_ATTRIBUTE_DATE8 IS '4712/12/31 00:00:00' (date) /**Business Event End Date 4 **/
+/** DATABASE ITEMS DEFAULT VALUES END **/
+
+/** INPUT VALUES BEGIN **/
+INPUTS are IV_ATTRIBUTE_5(Text),
+           IV_ATTRIBUTE_17 (Text),
+		   IV_ATTRIBUTE_7 (Text),
+		   IV_ATTRIBUTE_8(Text),
+		   IV_ATTRIBUTE_9(Text),
+		   IV_ATTRIBUTE_10(Text),
+		   IV_ATTRIBUTE_11(Text),
+		   IV_ATTRIBUTE_12(Text),
+		   IV_ATTRIBUTE_13(Text),
+		   IV_ATTRIBUTE_14(Text),
+		   IV_ATTRIBUTE_15(Text),
+		   IV_ATTRIBUTE_16(Text),
+		   IV_ATTRIBUTE_DATE1 (date),
+		   IV_ATTRIBUTE_DATE2 (date),
+		   IV_ATTRIBUTE_DATE3 (date),
+		   IV_ATTRIBUTE_DATE4 (date),
+		   IV_ATTRIBUTE_DATE5 (date),
+		   IV_ATTRIBUTE_DATE6 (date),
+		   IV_ATTRIBUTE_DATE7 (date),
+		   IV_ATTRIBUTE_DATE8 (date),
+		   IV_ATTRIBUTE_2
+/** INPUT VALUES END **/
+
+
+valid = 'Y'
+ERROR_MESSAGE =' '
+
+
+If ((IV_ATTRIBUTE_5 was not defaulted or IV_ATTRIBUTE_17 was not defaulted or IV_ATTRIBUTE_7 was not defaulted 
+    or IV_ATTRIBUTE_DATE1 was not defaulted or IV_ATTRIBUTE_DATE2 was not defaulted)
+	and (IV_ATTRIBUTE_5 was defaulted or IV_ATTRIBUTE_17 was defaulted or IV_ATTRIBUTE_7 was defaulted or
+	IV_ATTRIBUTE_DATE1 was defaulted or IV_ATTRIBUTE_DATE2 was defaulted)) then /*Business Travel Details **/
+	(
+	
+	 valid = 'N'
+     ERROR_MESSAGE = 'If Business Travel details are filled related all the info need to be filled. -1 '|| IV_ATTRIBUTE_5 || IV_ATTRIBUTE_17 || IV_ATTRIBUTE_7 || 
+	 TO_CHAR(IV_ATTRIBUTE_DATE1,'DD-MM-YYYY') || TO_CHAR(IV_ATTRIBUTE_DATE2,'DD-MM-YYYY') || IV_ATTRIBUTE_2
+     RETURN VALID, ERROR_MESSAGE 
+	
+	)
+
+if ((IV_ATTRIBUTE_8 was not defaulted or IV_ATTRIBUTE_9 was not defaulted or IV_ATTRIBUTE_10 was not defaulted 
+    or IV_ATTRIBUTE_DATE3 was not defaulted or IV_ATTRIBUTE_DATE4 was not defaulted)
+	and (IV_ATTRIBUTE_8 was defaulted or IV_ATTRIBUTE_9 was defaulted or IV_ATTRIBUTE_10 was defaulted or
+	IV_ATTRIBUTE_DATE3 was defaulted or IV_ATTRIBUTE_DATE4 was defaulted)) then /*Business Travel Details 2 **/
+	(
+	
+	 valid = 'N'
+     ERROR_MESSAGE = 'If Business Travel details are filled related all the info need to be filled.- 2'
+     RETURN VALID, ERROR_MESSAGE 
+	
+	)
+if ((IV_ATTRIBUTE_11 was not defaulted or IV_ATTRIBUTE_12 was not defaulted or IV_ATTRIBUTE_13 was not defaulted 
+    or IV_ATTRIBUTE_DATE5 was not defaulted or IV_ATTRIBUTE_DATE6 was not defaulted)
+	and (IV_ATTRIBUTE_11 was defaulted or IV_ATTRIBUTE_12 was defaulted or IV_ATTRIBUTE_13 was defaulted or
+	IV_ATTRIBUTE_DATE5 was defaulted or IV_ATTRIBUTE_DATE6 was defaulted)) then /*Business Travel Details 3 **/
+	(
+	
+	 valid = 'N'
+     ERROR_MESSAGE = 'If Business Travel details are filled related all the info need to be filled.- 3'
+     RETURN VALID, ERROR_MESSAGE 
+	
+	)	
+if ((IV_ATTRIBUTE_14 was not defaulted or IV_ATTRIBUTE_15 was not defaulted or IV_ATTRIBUTE_16 was not defaulted 
+    or IV_ATTRIBUTE_DATE7 was not defaulted or IV_ATTRIBUTE_DATE8 was not defaulted)
+	and (IV_ATTRIBUTE_14 was defaulted or IV_ATTRIBUTE_15 was defaulted or IV_ATTRIBUTE_16 was defaulted or
+	IV_ATTRIBUTE_DATE7 was defaulted or IV_ATTRIBUTE_DATE8 was defaulted)) then /*Business Travel Details 4 **/
+	(
+	
+	 valid = 'N'
+     ERROR_MESSAGE = 'If Business Travel details are filled related all the info need to be filled.- 4'
+     RETURN VALID, ERROR_MESSAGE 
+	
+	)	
+
+RETURN VALID

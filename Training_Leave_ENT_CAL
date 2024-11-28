@@ -1,0 +1,234 @@
+/*****************************************************************************
+Formula name: Training Leave ENT_CAL
+Formula type: Oracle Payroll
+Description :
+Author          : Amos Langat
+Date            : 16-Jun-2024
+******************************************************************************/
+default for pay_earn_period_end is '4712/12/31 00:00:00' (date)
+default for pay_earn_period_start is '0001/01/01 00:00:00' (date)
+default for pay_asg_termination_date is '4712/12/31 00:00:00' (date)
+default for pay_dir_comp_dir_card_id is -1
+default_data_value for employee_social_insurance_details_dir_card_dir_card_id  is -1
+default for asg_hr_asg_id is -1
+default for prorate_start is '0001/01/01 00:00:00' (date)
+default for prorate_end is '4712/12/31 00:00:00' (date)
+
+inputs are prorate_start(date),
+		   prorate_end(date)
+
+
+
+l_abs_unit			= 0
+l_abs_factor		= 0
+l_tot_earn      	= 0
+l_tot_earn_basic	= 0
+l_tot_ded	      	= 0
+l_abs_count     	= 0
+l_days				= 0
+l_ded_days			= 0
+l_prorate_start		= greatest(prorate_start, pay_earn_period_start)
+l_prorate_end		= least(prorate_end, pay_earn_period_end)
+l_al_payment		= 0
+l_additional_payment= 0 
+l_payment           = 0
+l_abs_days          = 0
+formula_name        = '[Aldar Training Leave ENT_CAL]'
+
+l_log = pay_internal_log_write(formula_name||' - start')
+
+l_log = pay_internal_log_write(formula_name||'- start')
+l_log = pay_internal_log_write(formula_name||' : l_prorate_start ' || to_char(l_prorate_start))
+l_log = pay_internal_log_write(formula_name||' : l_prorate_end ' || to_char(l_prorate_end))
+
+calc_breakdown_id_1		= employee_social_insurance_details_dir_card_dir_card_id[1]
+l_eff_date				= get_context(EFFECTIVE_DATE,'0001/01/01 00:00:00' (date))
+l_cal_days				= days_between(pay_earn_period_end,pay_earn_period_start) + 1
+l_comp_id				= deduction_component_by_ee
+
+
+change_contexts (dir_card_comp_id = l_comp_id)/*Start C4*/
+(
+    l_index = all_asgs_link_to_deduction_component.first(-1)
+    if (all_asgs_link_to_deduction_component.exists(l_index) ) then
+    (
+		l_asg_id = all_asgs_link_to_deduction_component[l_index]
+        change_contexts (payroll_assignment_id = l_asg_id)/*Start C3*/
+        (
+			
+			l_abs_entitlement_comp_sdate = trunc(pay_dir_comp_min_start_date,'dd')
+			l_abs_entitlement_comp_edate = trunc(pay_dir_comp_max_end_date,'dd')
+			l_log = pay_internal_log_write(formula_name||' : l_abs_entitlement_comp_sdate ' || to_char(l_abs_entitlement_comp_sdate))
+			l_log = pay_internal_log_write(formula_name||' : l_abs_entitlement_comp_edate ' || to_char(l_abs_entitlement_comp_edate))
+						
+						
+			l_abs_start_date	= greatest(pay_earn_period_start, l_abs_entitlement_comp_sdate)
+			l_abs_end_date		= least(pay_earn_period_end, l_abs_entitlement_comp_edate)
+			l_log = pay_internal_log_write(formula_name||' : l_abs_start_date ' || to_char(l_abs_start_date))
+			l_log = pay_internal_log_write(formula_name||' : l_abs_end_date ' || to_char(l_abs_end_date))
+			
+			l_start_date = to_char(l_abs_entitlement_comp_sdate,'MM-YYYY')
+			change_contexts(CALC_BREAKDOWN_ID = calc_breakdown_id_1)
+			(        
+				
+				l_eff_date = least(pay_asg_termination_date,pay_earn_period_end) 
+				l_hr_asg_id	= asg_hr_asg_id
+		
+		        set_input ('hr_id', l_hr_asg_id)
+				set_input ('eff_date',l_abs_entitlement_comp_sdate )
+				set_input ('mode', 'Grade')
+				execute('ALDAR GET HR DATA')
+				l_grade = get_output('l_text','ZZ')
+				
+				l_log = pay_internal_log_write(formula_name||' : Grade of the employee ' || (l_grade))
+			)
+			
+
+			
+			call_formula('ALDAR_GET_TRAINING_ABSENCE_ENTRY_DETAILS',
+							 l_hr_asg_id    > 'L_ASG_ID',
+							 l_abs_entitlement_comp_sdate    > 'L_SDATE',
+							 l_abs_entitlement_comp_edate    > 'L_EDATE',
+							 l_training_type   < 'l_training_type' default 'x'
+							 
+						)
+			CALL_FORMULA('ALDAR GET HR DATA',
+							l_hr_asg_id               > 'hr_id',
+							l_abs_entitlement_comp_sdate           > 'eff_date',
+							'Business Unit' 		 > 'mode',
+							l_Business_unit             < 'l_text'  DEFAULT 'X'
+						)						
+				l_CAL_MODE = GET_TABLE_VALUE('ALDAR_BUSINESS_UNIT_ELIGIBILITY','Eligibility',l_Business_unit,'0')	
+			
+			l_log = pay_internal_log_write(formula_name||' - l_training_type '||l_training_type)	
+			 
+					change_contexts(part_name = 'ORA_ENTITLEMENT_UNIT')
+					(	
+						call_formula('CALL_CALC_VALUE',
+									0           > 'BASE',
+									l_abs_entitlement_date_abs_unit < 'DED_AMOUNT' default 0,
+									l_abs_entitlement_date_uom  < 'OUT_UOM'    default 'ND'
+									)
+					)
+					l_log = pay_internal_log_write(formula_name||': Total Duration ' || to_char(l_abs_entitlement_date_abs_unit))
+					l_log = pay_internal_log_write(formula_name||': l_abs_entitlement_date_uom ' || l_abs_entitlement_date_uom)
+					l_tot_duration = l_abs_entitlement_date_abs_unit
+
+			l_abs_cnt = 1
+			l_value = 0
+			l_cur_period_actual_days = 0
+            l_abs_entitlement_dates = pay_child_dir_comp_for_run_period_dir_card_comp_id
+			while (l_abs_entitlement_dates.exists(l_abs_cnt))loop
+            (
+				l_abs_entitlement_date_comp_id = l_abs_entitlement_dates[l_abs_cnt]
+                l_log = pay_internal_log_write(formula_name||' : Absence Entitlement Date Comp Id:'+to_char(l_abs_entitlement_date_comp_id))
+                l_log = pay_internal_log_write(formula_name||': getting the value definitions')
+                change_contexts (dir_card_comp_id = l_abs_entitlement_date_comp_id)/*Start C2*/
+                (
+                  l_abs_entitlement_date_comp_date = pay_dir_comp_min_start_date
+				  
+				  if l_abs_entitlement_date_comp_date >= l_prorate_start and l_abs_entitlement_date_comp_date <= l_prorate_end then
+				  (
+					  change_contexts (date_earned = l_abs_entitlement_date_comp_date)/*Start C1*/
+					  (
+						l_log = pay_internal_log_write(formula_name||' : l_abs_entitlement_date_comp_date ' || to_char(l_abs_entitlement_date_comp_date))
+
+	/*-----------------------------------------------------  Entitlement Unit  --------------------------------------------------------------------------------*/
+						change_contexts (date_earned = l_abs_entitlement_date_comp_date)
+						(
+						change_contexts(part_name = 'ORA_ENTITLEMENT_UNIT')
+								(
+									call_formula('CALL_CALC_VALUE',
+												0           > 'BASE',
+												l_abs_entitlement_date_abs_unit < 'DED_AMOUNT' default 0,
+												l_abs_entitlement_date_uom  < 'OUT_UOM'    default 'ND'
+												)
+								)
+						)
+						
+						
+						l_log = pay_internal_log_write(formula_name||' : l_abs_entitlement_date_abs_unit ' || to_char(l_abs_entitlement_date_abs_unit))
+						l_log = pay_internal_log_write(formula_name||': l_abs_entitlement_date_uom ' || l_abs_entitlement_date_uom)
+						l_abs_unit = l_abs_unit + l_abs_entitlement_date_abs_unit
+						l_cur_period_actual_days = l_cur_period_actual_days + l_abs_entitlement_date_abs_unit
+						
+						/**/
+						/* Training Cal*/
+									change_contexts(CALC_BREAKDOWN_ID = calc_breakdown_id_1)
+								(        
+				
+									
+									l_hr_asg_id	= asg_hr_asg_id		
+									set_input ('hr_id', l_hr_asg_id)
+									set_input ('eff_date',l_abs_entitlement_date_comp_date )
+									set_input ('mode', 'Grade')
+									execute('ALDAR GET HR DATA')
+										l_grade = get_output('l_text','ZZ')
+				
+												l_log = pay_internal_log_write(formula_name||' : Grade of the employee ' || (l_grade))
+									)
+									
+									
+									
+									if(l_CAL_MODE = 'ALDAR')then(
+									l_type = replace(l_training_type,' ','_')
+									l_val = TO_NUMBER(GET_TABLE_VALUE('ALDAR_TRAINING_LEAVE',l_type,l_grade,'0'))
+										)
+									else if(l_CAL_MODE = 'C2I')then(
+											
+											if(l_training_type = 'Local Training')then (
+													l_type = 'Within_UAE'
+												)
+												else if(l_training_type = 'Overseas Training')then (
+													l_type = 'Outside_UAE'
+												) else (l_type = ' ')
+											
+									l_val = TO_NUMBER(GET_TABLE_VALUE('C2i_TRAINING_LEAVE',l_type,l_grade,'0'))
+										)
+										
+									/*l_value = (l_val * l_abs_unit) + l_value*/
+									l_value = (l_val * l_abs_entitlement_date_abs_unit) + l_value
+									
+									l_log = pay_internal_log_write(formula_name||': l_abs_entitlement_date_uom ' || l_abs_entitlement_date_uom)							
+									l_log = pay_internal_log_write(formula_name||'Aldar Training Leave ENT_CAL' || (l_type))
+									l_log = pay_internal_log_write(formula_name||' : l_val ' || to_char(l_val))
+									l_log = pay_internal_log_write(formula_name||' : l_value ' || to_char(l_value))
+								
+						/**/
+						
+						
+						
+					 )/*End of Context C1*/
+					 
+					
+				
+				   )/*End of If*/
+				)/*End of Context C2*/
+				l_log = pay_internal_log_write(formula_name||' : l_abs_entitlement_date_comp_date ' || to_char(l_abs_entitlement_date_comp_date))
+
+				l_abs_cnt = l_abs_cnt + 1
+				
+			)/*End of While Loop*/
+
+		)/*End of Context C3*/
+	)/*end of if*/
+	else
+	(
+		l_log = pay_internal_log_write(formula_name||' Error.. Assignment id is missing')
+		l_error = pay_log_error('PAY:PAY_ASG_ID_MISSING')
+	)
+)/* End of If*/
+l_days = l_abs_unit
+l_tot_ded	= 0
+l_tot_earn = l_value
+l_net_pay	= l_tot_earn
+
+l_log = pay_internal_log_write(formula_name||': l_net_pay value: ' || to_char(l_net_pay))
+l_log = pay_internal_log_write(formula_name||': l_tot_earn value: ' || to_char(l_tot_earn))
+
+l_log = pay_internal_log_write(formula_name||': l_tot_ded value: ' || to_char(l_tot_ded))
+l_log = pay_internal_log_write(formula_name||': l_abs_unit value: ' || to_char(l_abs_unit))
+l_log = pay_internal_log_write(formula_name||' - end')
+l_comments = formula_name
+
+return l_comments, l_net_pay, l_tot_ded, l_tot_earn, l_days 

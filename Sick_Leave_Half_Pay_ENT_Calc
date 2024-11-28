@@ -1,0 +1,195 @@
+/*
+****************************************************************************************************
+ Formula Name   : Sick Leave Half Pay ENT Calc
+ Formula Type   : Oracle Payroll
+ 
+ Description    : •	Employees who are sick may be granted with 30 days of Sick Leave Half Pay in a calendar year.
+                  •	Half Gross Salary should be deducted for the duration of Sick Leave – Half Pay
+ 
+Author          : Amos Langat
+Date            : 16-Jun-2024
+ Last update on : 
+*******************************************************************************************************/ 
+default for pay_earn_period_end is '4712/12/31 00:00:00' (date)
+default for pay_earn_period_start is '0001/01/01 00:00:00' (date)
+default for pay_dir_comp_dir_card_id is -1
+default for prorate_start is '0001/01/01 00:00:00' (date)
+default for prorate_end is '4712/12/31 00:00:00' (date)
+default_data_value for employee_social_insurance_details_dir_card_dir_card_id  is -1
+default for AIRFARE_ALLOWANCE_RETROACTIVE_ASG_MTD is 0
+default for AIRFARE_ALLOWANCE_ASG_MTD is 0
+
+inputs are prorate_start(date),
+		   prorate_end(date)
+
+l_log = pay_internal_log_write('(Sick Leave Half Pay leave_calc) - start')
+
+l_abs_unit			= 0
+l_abs_factor		= 0
+l_tot_earn      	= 0
+l_tot_ded	      	= 0
+l_abs_count     	= 0
+l_basic				= 0
+l_days				= 0
+l_basic_ded			= 0
+l_hra_ded			= 0
+l_tra_ded			= 0
+l_tele_ded   		= 0
+l_mon_oth_ded		= 0
+l_fixed_ot_ded		= 0
+l_child_ded			= 0
+l_social_ded		= 0
+l_air_ded           = 0
+l_fpay_days			= 0
+l_hpay_days			= 0
+l_npay_days			= 0
+l_air_allow         = 0
+l_prorate_start		= prorate_start
+l_prorate_end		= prorate_end
+calc_breakdown_id_1		= employee_social_insurance_details_dir_card_dir_card_id[1]
+formula_name        = '[Aldar Sick Leave Half Pay ENT Calc]'
+l_log = pay_internal_log_write(formula_name||' : l_prorate_start ' || to_char(l_prorate_start))
+l_log = pay_internal_log_write(formula_name||' : l_prorate_end ' || to_char(l_prorate_end))
+
+l_cal_days = days_between(pay_earn_period_end,pay_earn_period_start) + 1
+l_comp_id = deduction_component_by_ee
+
+change_contexts (dir_card_comp_id = l_comp_id)/*Start C4*/
+(
+    l_index = all_asgs_link_to_deduction_component.first(-1)
+    if (all_asgs_link_to_deduction_component.exists(l_index) ) then
+    (
+        l_asg_id = all_asgs_link_to_deduction_component[l_index]
+        change_contexts (payroll_assignment_id = l_asg_id)/*Start C3*/
+        (
+			l_abs_entitlement_comp_date = pay_dir_comp_min_start_date
+			l_log = pay_internal_log_write(formula_name||' : l_abs_entitlement_comp_date ' || to_char(l_abs_entitlement_comp_date))
+			l_abs_cnt = 1
+            l_abs_entitlement_dates = pay_child_dir_comp_for_run_period_dir_card_comp_id
+            while (l_abs_entitlement_dates.exists(l_abs_cnt))loop
+            (
+				l_abs_entitlement_date_comp_id = l_abs_entitlement_dates[l_abs_cnt]
+                l_log = pay_internal_log_write(formula_name||' : Absence Entitlement Date Comp Id:'+to_char(l_abs_entitlement_date_comp_id))
+                l_log = pay_internal_log_write(formula_name||' : getting the value definitions')
+                change_contexts (dir_card_comp_id = l_abs_entitlement_date_comp_id)/*Start C2*/
+                (
+                  l_abs_entitlement_date_comp_date = pay_dir_comp_min_start_date
+
+			      if l_abs_entitlement_date_comp_date >= l_prorate_start and l_abs_entitlement_date_comp_date <= l_prorate_end then
+				  (
+					  change_contexts (date_earned = l_abs_entitlement_date_comp_date)/*Start C1*/
+					  (
+						l_log = pay_internal_log_write(formula_name||' : l_abs_entitlement_date_comp_date ' || to_char(l_abs_entitlement_date_comp_date))
+
+	/*-----------------------------------------------------  Entitlement Unit  --------------------------------------------------------------------------------*/
+						change_contexts (date_earned = l_abs_entitlement_date_comp_date)
+						(
+						change_contexts(part_name = 'ORA_ENTITLEMENT_UNIT')
+								(
+									call_formula('CALL_CALC_VALUE',
+												0           > 'BASE',
+												l_abs_entitlement_date_abs_unit < 'DED_AMOUNT' default 0,
+												l_abs_entitlement_date_uom  < 'OUT_UOM'    default 'ND'
+												)
+								)
+						)
+						l_log = pay_internal_log_write(formula_name||' : l_abs_entitlement_date_abs_unit ' || to_char(l_abs_entitlement_date_abs_unit))
+						l_log = pay_internal_log_write(formula_name||' : l_abs_entitlement_date_uom ' || l_abs_entitlement_date_uom)
+						l_abs_unit = l_abs_unit + l_abs_entitlement_date_abs_unit
+	/*-----------------------------------------------------  Entitlement Factor  --------------------------------------------------------------------------------*/
+						 change_contexts (date_earned = l_abs_entitlement_date_comp_date)
+						(
+						change_contexts(part_name = 'ORA_ENTITLEMENT_FACTOR')
+								(
+									call_formula('CALL_CALC_VALUE',
+												1           > 'BASE',
+												l_abs_entitlement_date_factor < 'DED_AMOUNT' default 1,
+												l_abs_entitlement_date_factor_uom  < 'OUT_UOM'    default 'NULL'
+												)
+								)
+						)
+						l_log = pay_internal_log_write(formula_name||' : l_abs_entitlement_date_factor ' || to_char(l_abs_entitlement_date_factor))
+						l_log = pay_internal_log_write(formula_name||' : l_abs_entitlement_date_factor_uom ' || l_abs_entitlement_date_factor_uom)
+						l_abs_factor = l_abs_factor + (l_abs_entitlement_date_factor * l_abs_entitlement_date_abs_unit)
+						l_abs_ded_factor_day = l_abs_entitlement_date_abs_unit - (l_abs_entitlement_date_factor * l_abs_entitlement_date_abs_unit)
+						l_abs_pay_factor_day = l_abs_entitlement_date_factor * l_abs_entitlement_date_abs_unit
+						l_days	= l_days + l_abs_entitlement_date_abs_unit
+
+						
+						
+
+					 )/*End of Context C1*/
+					 l_log = pay_internal_log_write(formula_name||' : l_abs_entitlement_date_comp_date ' || to_char(l_abs_entitlement_date_comp_date))
+					/*-----------------------------------------------------  Amount Calculation - Start  --------------------------------------------------------------------------------*/
+					call_formula('Aldar Get Gross Salary'
+								, l_abs_entitlement_date_comp_date > 'p_eff_date'
+								, l_basic_cur_day < 'l_basic' default 0
+								, l_hra_cur_day < 'l_hra' default 0
+								, l_tra_cur_day < 'l_tra' default 0
+								, l_mon_oth_cur_day < 'l_mon_oth_allow' default 0
+								, l_tele_cur_day < 'l_tele_amount' default 0
+								, l_child_cur_day < 'l_child_amount' default 0
+								, l_social_cur_day < 'l_social' default 0
+								, l_gross_cur_day < 'l_gross' default 0)		
+					
+					
+					l_basic_ded		= l_basic_ded + (l_basic_cur_day/30 * l_abs_ded_factor_day)
+					l_hra_ded		= l_hra_ded + (l_hra_cur_day/30 * l_abs_ded_factor_day)
+					l_tra_ded		= l_tra_ded + (l_tra_cur_day/30 * l_abs_ded_factor_day)
+					l_mon_oth_ded   = l_mon_oth_ded + (l_mon_oth_cur_day/30 * l_abs_ded_factor_day)
+					l_tele_ded		= l_tele_ded + (l_tele_cur_day/30 * l_abs_ded_factor_day)
+					l_child_ded		= l_child_ded + (l_child_cur_day/30 * l_abs_ded_factor_day)
+					l_social_ded	= l_social_ded + (l_social_cur_day/30 * l_abs_ded_factor_day)
+					change_contexts(CALC_BREAKDOWN_ID = calc_breakdown_id_1)
+			       (
+					l_air_allow         = AIRFARE_ALLOWANCE_RETROACTIVE_ASG_MTD + AIRFARE_ALLOWANCE_ASG_MTD
+					)
+
+					/*-----------------------------------------------------  Amount Calculation - End  --------------------------------------------------------------------------------*/
+				 )/*End If*/
+				)/*End of Context C2*/
+
+				l_abs_cnt = l_abs_cnt + 1
+			)/*End of While Loop*/
+
+			l_abs_cnt = l_abs_cnt - 1
+            l_log = pay_internal_log_write(formula_name||' l_abs_cnt : '|| to_char(l_abs_cnt))
+		)/*End of Context C3*/
+	)/*end of if*/
+	else
+	(
+		l_log = pay_internal_log_write(formula_name||' Error.. Assignment id is missing')
+		l_error = pay_log_error('PAY:PAY_ASG_ID_MISSING')
+	)
+)/* End of If*/
+
+l_basic_ded		= round(l_basic_ded,2)*-1
+l_hra_ded		= round(l_hra_ded,2)*-1
+l_tra_ded		= round(l_tra_ded,2)*-1
+l_mon_oth_ded	= round(l_mon_oth_ded,2)*-1
+l_tele_ded		= round(l_tele_ded,2)*-1
+l_child_ded		= round(l_child_ded,2)*-1
+l_social_ded	= round(l_social_ded,2)*-1
+l_air_ded       = round((l_air_allow/30 * l_days)/2,2) * -1
+
+l_tot_ded	= l_basic_ded + l_hra_ded + l_tra_ded + l_mon_oth_ded + l_tele_ded + l_child_ded + l_social_ded + l_air_ded
+l_tot_earn  = 0
+
+l_net_pay		= l_tot_earn + l_tot_ded
+
+l_log = pay_internal_log_write(formula_name||' : l_air_ded ' || to_char(l_air_ded))
+l_log = pay_internal_log_write(formula_name||' : l_basic_ded ' || to_char(l_basic_ded))
+l_log = pay_internal_log_write(formula_name||' : l_hra_ded ' || to_char(l_hra_ded))
+l_log = pay_internal_log_write(formula_name||' : l_tra_ded ' || to_char(l_tra_ded))
+l_log = pay_internal_log_write(formula_name||' : l_mon_oth_ded ' || to_char(l_mon_oth_ded))
+l_log = pay_internal_log_write(formula_name||' : l_tele_ded ' || to_char(l_tele_ded))
+l_log = pay_internal_log_write(formula_name||' : l_child_ded ' || to_char(l_child_ded))
+l_log = pay_internal_log_write(formula_name||' : l_social_ded ' || to_char(l_social_ded))
+l_log = pay_internal_log_write(formula_name||': l_net_pay value: ' || to_char(l_net_pay))
+l_log = pay_internal_log_write(formula_name||': l_tot_earn value: ' || to_char(l_tot_earn))
+l_log = pay_internal_log_write(formula_name||': l_tot_ded value: ' || to_char(l_tot_ded))
+l_log = pay_internal_log_write(formula_name||': l_days value: ' || to_char(l_days))
+l_log = pay_internal_log_write(formula_name||' - end')
+l_comments = 'Sick Leave Half Pay'
+
+return l_comments, l_net_pay, l_days, l_tot_ded, l_tot_earn, l_basic_ded, l_hra_ded, l_tra_ded, l_mon_oth_ded, l_tele_ded, l_child_ded, l_social_ded, l_air_ded

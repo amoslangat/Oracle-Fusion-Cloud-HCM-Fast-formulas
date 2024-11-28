@@ -1,0 +1,18 @@
+/***************************************************************
+Formula Name : Employer Pension Contribution Adjustment
+Formula Type : Oracle Payroll
+Description  : Employer Pension Contribution Adjustment Calculation for Regular Month, Termination Month etc.
+Author       : Amos Langat
+Date         : 30-Dec-2022        
+***************************************************************/
+default for Adjustment_Amount is 0
+
+inputs are Adjustment_Amount
+
+l_value = Adjustment_Amount
+
+
+l_log = pay_internal_log_write('(Employer Pension Contribution Adjustment) : l_value ' || to_char(l_value))
+
+    
+return l_value

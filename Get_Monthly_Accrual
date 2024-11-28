@@ -1,0 +1,164 @@
+/* 
+***************************************************************************************
+Formula Name    : Get Monthly Accrual
+Formula Type    : Payroll Access to HR
+LDG             : AE Legislative Data Group
+
+Description     : 
+			   
+Author          : Abdulrahman Mohammed
+Date            : 13-Jan-2023
+Last Updated on : 
+***************************************************************************************/
+
+DEFAULT FOR per_asg_attribute8        IS 'XX'
+
+Inputs are start_date (date),
+           end_date   (date),
+		   l_asg_id
+		   
+for_name = '[ALDAR Get Monthly Accrual] --> '
+
+l_total_accrual    = 0
+
+l_log = ESS_LOG_WRITE(for_name||' Accrual Period Start Date : '||TO_CHAR(start_date,'dd-MM-yyyy'))
+l_log = ESS_LOG_WRITE(for_name||' Accrual Period End Date   : '||TO_CHAR(end_date,'dd-MM-yyyy'))
+
+l_start_date  = start_date
+l_end_date    = end_date
+	
+l_log = ESS_LOG_WRITE(for_name||' Start Date                : '||TO_CHAR(l_start_date,'dd-MM-yyyy'))
+l_log = ESS_LOG_WRITE(for_name||' End Date                  : '||TO_CHAR(l_end_date,'dd-MM-yyyy'))
+
+/* Event Dates Calculation ------------------------------------------------------------------------------------------------------------ STARTS */
+
+i       = 1
+l_index = 1
+
+l_event_date      = l_start_date
+iv_event_dates[1] = l_start_date
+
+l_log = ESS_LOG_WRITE(for_name||' Event Date['||TO_CHAR(l_index)||'] --> '||TO_CHAR(iv_event_dates[l_index],'dd/MM/yyyy'))
+
+l_loop_start = ADD_DAYS(l_start_date, 1)
+l_loop_end   = l_end_date
+
+WHILE (l_loop_start <= l_loop_end) LOOP
+(
+    l_eff_date = ADD_DAYS(l_loop_start,-1)
+
+	CHANGE_CONTEXTS (HR_ASSIGNMENT_ID = l_asg_id ,EFFECTIVE_DATE = l_loop_start)
+	(
+        l_annual_ent = per_asg_attribute8
+		
+		l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Annual Leave Entitlement Days : '||l_annual_ent)
+	)
+			
+	CHANGE_CONTEXTS (HR_ASSIGNMENT_ID = l_asg_id,EFFECTIVE_DATE = l_eff_date)
+	(
+        l_prev_annual_ent = per_asg_attribute8
+		
+		l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Annual Leave Entitlement Days : '||l_prev_annual_ent)
+	)
+    
+	IF (l_prev_annual_ent <> l_annual_ent) THEN
+	(
+        l_event_date             = l_loop_start
+        l_index                  = l_index + 1   
+        iv_event_dates[l_index]  = l_event_date 
+		l_log = ESS_LOG_WRITE(for_name||' Event Date['||TO_CHAR(l_index)||'] --> '||TO_CHAR(iv_event_dates[l_index],'dd/MM/yyyy'))
+	)
+		
+	l_loop_start = ADD_DAYS(l_loop_start,1)
+)
+
+l_index = l_index + 1
+iv_event_dates[l_index] = l_end_date
+
+l_log = ESS_LOG_WRITE(for_name||' Event Date['||TO_CHAR(l_index)||'] --> '||TO_CHAR(iv_event_dates[l_index],'dd/MM/yyyy'))
+
+/* Event Dates Calculation ----------------------------------------------------------------------------------------------------------------- ENDS*/
+	
+
+
+l_count = iv_event_dates.COUNT
+	
+/* Hire Month, Termination Month or Grade Change Month --> Proration Calucation has to be done */
+	
+IF l_start_date <> TRUNC(l_start_date,'MM') OR l_end_date <> LAST_DAY(TRUNC(l_start_date,'MM')) OR l_count > 2 THEN   /* Hire Month, Termination Month or Grade Change Month */
+(
+	l_log = ESS_LOG_WRITE(for_name||' Inside the Proration Condition')
+	    	
+	IF TO_CHAR(l_start_date,'MM') <> '02' THEN
+	(
+	    l_factor = 30
+	)
+	
+	ELSE
+	(
+	    l_factor = TO_NUMBER(TO_CHAR(LAST_DAY(l_start_date),'DD'))
+	)
+		
+	l_work_days = DAYS_BETWEEN(l_end_date,l_start_date) + 1
+		
+	l_log = ESS_LOG_WRITE(for_name||' Working Days : '||TO_CHAR(l_work_days))
+	l_log = ESS_LOG_WRITE(for_name||' Factor       : '||TO_CHAR(l_factor))
+		
+	i = 1 
+	j = l_count
+		
+	l_accrual = 0
+
+	WHILE i < j LOOP
+	(  
+		
+	    IF (iv_event_dates[i+1] = iv_event_dates[l_count]) then
+	    (
+		    l_prorate_days = DAYS_BETWEEN(iv_event_dates[i+1], iv_event_dates[i]) + 1 
+	    )
+		
+	    ELSE
+	    (
+		    l_prorate_days = DAYS_BETWEEN(iv_event_dates[i+1], iv_event_dates[i])
+	    )
+		
+	    CHANGE_CONTEXTS(EFFECTIVE_DATE = ADD_DAYS(iv_event_dates[i+1],-1),HR_ASSIGNMENT_ID = l_asg_id)
+	    (
+		    l_annual_ent_days = per_asg_attribute8
+			
+			l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Annual Leave Entitlement Days : '||l_annual_ent_days)
+	    )
+	    
+        l_ent = TO_NUMBER(SUBSTR(l_annual_ent_days,1,2))
+			
+	    l_accrual = l_accrual + (((l_ent/12) / l_factor) * l_prorate_days)
+			
+	    l_log = ESS_LOG_WRITE(for_name||' Prorate Days    : '||TO_CHAR(l_prorate_days))
+	    l_log = ESS_LOG_WRITE(for_name||' Prorate Accrual : '||TO_CHAR(l_accrual))
+		    
+	    i = i  + 1
+	)
+        
+    l_mon_accrual = l_accrual		
+)
+	
+ELSE
+(
+    CHANGE_CONTEXTS(EFFECTIVE_DATE = l_end_date, HR_ASSIGNMENT_ID = l_asg_id)
+    (
+        l_annual_ent_days = per_asg_attribute8
+		
+		l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Annual Leave Entitlement Days : '||l_annual_ent_days)
+    )
+		
+    l_mon_accrual = (TO_NUMBER(SUBSTR(l_annual_ent_days,1,2)) / 12)
+
+)
+	
+accrual = l_mon_accrual
+	
+l_log = ESS_LOG_WRITE(for_name||' Accrual for the month is : '||TO_CHAR(l_mon_accrual))
+l_log = ESS_LOG_WRITE(for_name||' Total Accrual            : '||TO_CHAR(l_total_accrual))
+
+RETURN accrual
+	

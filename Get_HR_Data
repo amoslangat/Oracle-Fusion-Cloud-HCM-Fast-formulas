@@ -1,0 +1,221 @@
+/****************************************************
+Formula Name : Get HR Data
+Formula Type : Payroll Access to HR
+LDG          : AE Legislative Data Group
+Description  :
+Author       : 
+Date         : 30-Nov-2022
+Last Updated on : 22-DEC-2023
+******************************************************/
+
+
+Default for PER_ASG_PEOPLE_GROUP_SEGMENT2 Is 'XX' /**Pay Scale **/
+Default for per_asg_grade_name            is 'XX' 
+DEFAULT FOR per_per_citizenship_leg_code           IS 'XX'
+Default for PER_ASG_PEOPLE_GROUP_SEGMENT1 Is 'XX' /**UAE National**/
+Default for PER_ASG_PEOPLE_GROUP_SEGMENT3 Is 'Old' /**UAE National**/
+Default for PER_ASG_ATTRIBUTE_DATE1       is '1951/01/01 00:00:00' (date)
+DEFAULT FOR PER_ASG_NOTICE_PERIOD                  IS 0
+DEFAULT FOR PER_ASG_NOTICE_PERIOD_UOM              IS 'XX'
+DEFAULT FOR PER_REL_NOTIFIED_TERMINATION_DATE      IS '4712/12/31 00:00:00' (date)
+DEFAULT FOR PER_ASG_PERSON_NUMBER      IS 'XX'
+DEFAULT FOR PER_PER_CITIZENSHIP_LEG_NAME IS 'XX'
+DEFAULT FOR PER_ASG_ATTRIBUTE4 IS 'XX'
+DEFAULT FOR PER_ASG_ATTRIBUTE6 IS 'XX'
+DEFAULT FOR PER_REL_ATTRIBUTE_DATE1     IS '4712/12/31 00:00:00' (date)
+
+
+Default for PER_ASG_BUSINESS_UNIT_NAME            is 'XX' 
+Default for PER_ASG_ORG_LEGAL_EMPLOYER_NAME       is 'XX' 
+
+Inputs are eff_date (date), 
+           mode     (text),
+           hr_id
+		   
+		   
+formula_name = '[ALDAR GET HR DATA]'
+
+
+IF mode = 'Pay Scale' THEN
+(
+    CHANGE_CONTEXTS(HR_ASSIGNMENT_ID = hr_id, EFFECTIVE_DATE = eff_date)
+	(
+	    l_text = PER_ASG_PEOPLE_GROUP_SEGMENT2
+	)
+	
+	l_log = ESS_LOG_WRITE(formula_name||'Employee Pay Scale Segment is : '||l_text)
+	
+	RETURN l_text
+)
+
+else if mode = 'Grade' then
+(
+    CHANGE_CONTEXTS(HR_ASSIGNMENT_ID = hr_id, EFFECTIVE_DATE = eff_date)
+	(
+	    l_text = per_asg_grade_name
+	)
+	
+	l_log = ESS_LOG_WRITE(formula_name||'Employee Grade name is : '||l_text)
+	
+	RETURN l_text
+)
+
+ELSE IF mode = 'Citizenship Code' THEN
+(
+    CHANGE_CONTEXTS(HR_ASSIGNMENT_ID = hr_id, EFFECTIVE_DATE = eff_date)
+	(
+	    l_text = per_per_citizenship_leg_code
+	)
+	
+	l_log = ESS_LOG_WRITE(formula_name||'Employee Citizenship country code is : '||l_text)
+	
+	RETURN l_text
+)
+ELSE IF mode = 'UAE National' THEN
+(
+    CHANGE_CONTEXTS(HR_ASSIGNMENT_ID = hr_id, EFFECTIVE_DATE = eff_date)
+	(
+	    l_text = PER_ASG_PEOPLE_GROUP_SEGMENT1
+	)
+	
+	l_log = ESS_LOG_WRITE(formula_name||'Employee UAE National Segment is : '||l_text)
+	
+	RETURN l_text
+)
+
+ELSE IF mode = 'AD Pension' THEN
+(
+    CHANGE_CONTEXTS(HR_ASSIGNMENT_ID = hr_id, EFFECTIVE_DATE = eff_date)
+	(
+	    l_text = PER_ASG_PEOPLE_GROUP_SEGMENT3
+	)
+	
+	l_log = ESS_LOG_WRITE(formula_name||'Employee AD Pension Segment is : '||l_text)
+	
+	RETURN l_text
+)
+
+ELSE IF mode = 'Revised Salary Date' THEN
+(
+    CHANGE_CONTEXTS(HR_ASSIGNMENT_ID = hr_id, EFFECTIVE_DATE = eff_date)
+	(
+	    l_date = PER_ASG_ATTRIBUTE_DATE1
+	)
+	
+	l_log = ESS_LOG_WRITE(formula_name||'Employee Revised Salary Dateis : '||to_char(l_date,'DD-MM-YYYY'))
+	
+	RETURN l_date
+)
+ELSE IF mode = 'Air Ticket Destination' THEN
+(
+    CHANGE_CONTEXTS(HR_ASSIGNMENT_ID = hr_id, EFFECTIVE_DATE = eff_date)
+	(
+	    l_text = PER_ASG_ATTRIBUTE4
+	)
+	
+	l_log = ESS_LOG_WRITE(formula_name||'Air Ticket Destination is : '||(l_text))
+	
+	RETURN l_text
+)
+ELSE IF mode = 'MOL Entity' THEN
+(
+    CHANGE_CONTEXTS(HR_ASSIGNMENT_ID = hr_id, EFFECTIVE_DATE = eff_date)
+	(
+	    l_text = PER_ASG_ATTRIBUTE6
+	)
+	
+	l_log = ESS_LOG_WRITE(formula_name||'MOL Entity is : '||(l_text))
+	
+	RETURN l_text
+)
+ELSE IF mode = 'Notice Period' THEN
+(
+    CHANGE_CONTEXTS(HR_ASSIGNMENT_ID = hr_id, EFFECTIVE_DATE = eff_date)
+	(
+	    l_number = PER_ASG_NOTICE_PERIOD
+	)
+	
+	l_log = ESS_LOG_WRITE(formula_name||'Notice period of the employee : '||to_char(l_number))
+	
+	RETURN l_number
+)
+
+ELSE IF mode = 'Notice Period UOM' THEN
+(
+    CHANGE_CONTEXTS(HR_ASSIGNMENT_ID = hr_id, EFFECTIVE_DATE = eff_date)
+	(
+	    l_text = PER_ASG_NOTICE_PERIOD_UOM
+	)
+	
+	l_log = ESS_LOG_WRITE(formula_name||'Notice period of the employee : '||l_text)
+	
+	RETURN l_text
+)
+
+ELSE IF mode = 'Notified Termination date' THEN
+(
+    CHANGE_CONTEXTS(HR_ASSIGNMENT_ID = hr_id, EFFECTIVE_DATE = eff_date)
+	(
+	    l_date = PER_REL_NOTIFIED_TERMINATION_DATE
+	)
+	
+	l_log = ESS_LOG_WRITE(formula_name||'Notified termination date of the employee : '||to_char(l_date,'DD-MM-YYYY'))
+	
+	RETURN l_date
+)
+ELSE IF mode = 'Person Number' THEN
+(
+    CHANGE_CONTEXTS(HR_ASSIGNMENT_ID = hr_id, EFFECTIVE_DATE = eff_date)
+	(
+	    l_text = PER_ASG_PERSON_NUMBER
+	)
+	
+	l_log = ESS_LOG_WRITE(formula_name||'Person Number of the employee : '||l_text)
+	
+	RETURN l_text
+)
+
+ELSE IF mode = 'Citizenship' THEN
+(
+    CHANGE_CONTEXTS(HR_ASSIGNMENT_ID = hr_id, EFFECTIVE_DATE = eff_date)
+	(
+	    l_text = PER_PER_CITIZENSHIP_LEG_NAME
+	)
+	
+	l_log = ESS_LOG_WRITE(formula_name||'Employee Citizenship country is : '||l_text)
+	
+	RETURN l_text
+)
+ELSE IF mode = 'Last Payment Date' THEN
+(
+    CHANGE_CONTEXTS(HR_ASSIGNMENT_ID = hr_id, EFFECTIVE_DATE = eff_date)
+	(
+	    l_date = PER_REL_ATTRIBUTE_DATE1
+	)
+	
+	l_log = ESS_LOG_WRITE(formula_name||'Last payment date of employee from work relationship : '||to_char(l_date,'DD-MM-YYYY'))
+	
+	RETURN l_date
+)
+ELSE IF mode = 'Business Unit' THEN
+(
+    CHANGE_CONTEXTS(HR_ASSIGNMENT_ID = hr_id, EFFECTIVE_DATE = eff_date)
+	(
+	    l_text = PER_ASG_BUSINESS_UNIT_NAME
+	)
+	
+	l_log = ESS_LOG_WRITE(formula_name||' Business Unit : '||l_text)
+	
+	RETURN l_text
+)
+ELSE IF mode = 'Legal Employer' THEN
+(
+    CHANGE_CONTEXTS(HR_ASSIGNMENT_ID = hr_id, EFFECTIVE_DATE = eff_date)
+	(
+	    l_text = PER_ASG_ORG_LEGAL_EMPLOYER_NAME
+	)
+	
+	l_log = ESS_LOG_WRITE(formula_name||' Legal Employer : '||l_text)
+	
+	RETURN l_text
+)

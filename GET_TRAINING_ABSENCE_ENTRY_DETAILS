@@ -1,0 +1,34 @@
+/* ****************************************************************************
+Formula name: GET_TRAINING_ABSENCE_ENTRY_DETAILS
+Formula type: Payroll Access to HR
+Description :
+Author      : Abdulrahman Mohammed
+Date        : 19-01-2023
+******************************************************************************/
+
+
+default for l_sdate is '4712/12/31 00:00:00' (date)
+default for l_edate is '4712/12/31 00:00:00' (date)
+default for l_asg_id is 0
+default for ANC_ABS_ENTRS_ATTRIBUTE1 is 'X'
+
+inputs are l_sdate(date),l_edate(date),l_asg_id
+
+formula_name = '[ALDAR_GET_TRAINING_TYPE_ABSENCE_ENTRY_DETAILS]'
+l_log = pay_internal_log_write(formula_name||' - Start ')
+l_log = pay_internal_log_write(formula_name||' - l_sdate '||to_char(l_sdate))
+l_log = pay_internal_log_write(formula_name||' - l_edate '||to_char(l_edate))
+l_log = pay_internal_log_write(formula_name||' - l_asg_id '||to_char(l_asg_id))
+
+call_formula('ALDAR_GET_TRAINING_TYPE_ABSENCE_ENTRY_DETAILS',
+				 l_asg_id    > 'L_ASG_ID',
+				 l_sdate    > 'L_SDATE',
+				 l_edate    > 'L_EDATE',
+				 l_training_type   < 'l_training_type' default 'y'
+				 
+				 )
+	
+l_log = pay_internal_log_write(formula_name||' - l_training_type '||l_training_type)
+l_log = pay_internal_log_write(formula_name||' - End ')
+
+return l_training_type

@@ -1,0 +1,30 @@
+/*
+**************************************************************
+Formula Name : Housing Loan Adjustment Entry Validation
+Formula Type : Element Input Validation
+Description  : 
+Author       : Abdulrahman Mohammed
+Date         : 1-Dec-2022
+Last Updated : 
+Version      :           
+***************************************************************/
+
+
+l_person_id      = TO_CHAR(GET_CONTEXT(PERSON_ID,0))
+l_eff_date     = GET_CONTEXT(EFFECTIVE_DATE, '0001/01/01 00:00:00' (date))
+
+l_last_day  = last_day (l_eff_date)
+
+l_entry = 'N'
+
+l_entry = (GET_VALUE_SET('ALDAR_HOUSING_LOAN_ENTRY_COUNT','|=P_PERSON_ID='''||l_person_id||''''||
+	                                                          '|P_PERIOD='''||to_char(l_last_day,'DD-MM-YYYY')||''''))
+															   
+															   
+if l_entry = 'Y' then
+(
+   formula_message = 'Adjustment element cannot be entered if the multiple housing loans are in active as of period' 
+  formula_status = 'E'
+  return formula_message, formula_status
+
+)

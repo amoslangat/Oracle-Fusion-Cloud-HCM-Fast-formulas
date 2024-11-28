@@ -1,0 +1,106 @@
+/* 
+***************************************************************************************
+Formula Name    : Annual Leave PAYOUT Calc
+Formula Type    : Oracle Payroll
+LDG             : AE Legislative Data Group
+
+Description     : 
+			   
+Author          : Amos Langat
+Date            : 18-Jan-2023
+Last Updated on : 
+***************************************************************************************/
+
+DEFAULT_DATA_VALUE FOR employee_social_insurance_details_dir_card_dir_card_id  is -1
+
+DEFAULT FOR pay_earn_period_end      IS '4712/12/31 00:00:00' (DATE)
+DEFAULT FOR pay_earn_period_start    IS '0001/01/01 00:00:00' (DATE)
+DEFAULT FOR pay_asg_termination_date IS '4712/12/31 00:00:00' (DATE)
+DEFAULT FOR pay_asg_hire_date        IS '4712/12/31 00:00:00' (DATE)
+DEFAULT FOR asg_hr_asg_id            IS 0
+
+
+l_payout_value   = 0
+l_rate           = 0
+l_payout_unit    = 0
+l_service_months = 0
+calc_brk_id      = employee_social_insurance_details_dir_card_dir_card_id[1]
+
+for_name = '[Aldar Annual Leave PAYOUT Calc] --> '
+
+l_comp_id = deduction_component_by_ee
+
+CHANGE_CONTEXTS (DIR_CARD_COMP_ID = l_comp_id)
+(
+	l_index = all_asgs_link_to_deduction_component.FIRST(-1)
+	
+	IF (all_asgs_link_to_deduction_component.EXISTS(l_index)) THEN
+	(
+		l_asg_id = all_asgs_link_to_deduction_component[l_index]
+		
+		CHANGE_CONTEXTS (PAYROLL_ASSIGNMENT_ID = l_asg_id)
+		(
+            l_hr_asg_id      = asg_hr_asg_id
+			l_eff_date       = LEAST(pay_earn_period_end, pay_asg_termination_date)
+			
+			CALL_FORMULA('ALDAR GET GROSS SALARY',
+						    l_eff_date      > 'p_eff_date',
+						    l_basic         < 'l_basic'         DEFAULT 0,
+						    l_hra           < 'l_hra'           DEFAULT 0,
+						    l_child_amount  < 'l_child_amount'  DEFAULT 0,
+						    l_social        < 'l_social'        DEFAULT 0,
+						    l_tra           < 'l_tra'           DEFAULT 0,
+						    l_tele_amount   < 'l_tele_amount'   DEFAULT 0,
+						    l_mon_oth_allow < 'l_mon_oth_allow' DEFAULT 0
+		                )
+		    
+			l_gross = l_basic + l_hra + l_child_amount + l_social + l_tra + l_tele_amount + l_mon_oth_allow
+			
+			l_start_date = GREATEST(TRUNC(pay_earn_period_start,'YYYY'), pay_asg_hire_date)
+			l_end_date   = LEAST(pay_earn_period_end, pay_asg_termination_date)
+			
+			CALL_FORMULA('ALDAR Get Accrual Detail',
+			                l_start_date  > 'start_date',
+                            l_end_date    > 'end_date',
+                            'Detail'      > 'mode',
+							l_hr_asg_id   > 'l_asg_id',
+							l_round_off   < 'l_round_off_val' DEFAULT 0
+						)
+            
+			/*-------------------------------------- Payout Unit --------------------------------------------------------*/
+			
+			CHANGE_CONTEXTS(PART_NAME = 'ORA_FINAL_DISBURSEMENT_UNIT')
+			(
+				CALL_FORMULA('CALL_CALC_VALUE',
+							    0             > 'BASE',
+							    l_payout_unit < 'DED_AMOUNT' DEFAULT 0,
+							    l_payout_uom  < 'OUT_UOM'    DEFAULT 'ND'
+							)
+			)
+			
+			l_log = PAY_INTERNAL_LOG_WRITE(for_name||' Payout Unit : '||TO_CHAR(l_payout_unit))
+			
+			l_payout_unit = l_payout_unit - l_round_off
+            
+			/*----------------------------------- Payout Rate --------------------------------------------------------------*/
+			
+            l_payout_unit = ROUND(l_payout_unit,1)
+			
+            l_payout_value = round(l_payout_unit * (l_gross/20.58))
+		)
+	)
+	
+	ELSE
+	(
+		l_log   = PAY_INTERNAL_LOG_WRITE(for_name||' Error.. Assignment id is missing')
+		l_error = PAY_LOG_ERROR('PAY:PAY_ASG_ID_MISSING')
+	)
+)
+
+log = PAY_INTERNAL_LOG_WRITE(for_name||' Employee is eligible for Payments as Service is less than 6 months: Service period= ' ||TO_CHAR(l_service_months))
+log = PAY_INTERNAL_LOG_WRITE(for_name||' Payout Value : '||TO_CHAR(l_payout_value))
+log = PAY_INTERNAL_LOG_WRITE(for_name||' Payout Days  : '||TO_CHAR(l_payout_unit))
+
+
+RETURN l_payout_value, l_payout_unit
+

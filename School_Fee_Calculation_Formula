@@ -1,0 +1,137 @@
+/*
+**************************************************************
+Formula Name : School Fee Calculation Formula
+Formula Type : Element Input Validation
+Description  : 
+Author          : Amos Langat
+Date            : 16-Jun-2024
+Last Updated : 
+Version      :           
+***************************************************************/
+
+DEFAULT_DATA_VALUE FOR entry_element_entry_id IS 0
+
+DEFAULT FOR asg_hr_asg_id          IS  0
+DEFAULT FOR Entitlement_Amount     IS 0
+DEFAULT FOR Total_Entitlement      IS 0
+DEFAULT for Annual_Tuition_Fee     IS 0
+DEFAULT FOR Current_Request_Amount IS 0
+DEFAULT for School_Name            IS 'X'
+DEFAULT FOR Grade_Or_Year          IS 'X'
+DEFAULT FOR Previous_Claim	       IS 0 
+DEFAULT FOR Child_Name	           IS 'X'
+
+INPUTS ARE Entitlement_Amount, 
+           School_Name   (text), 
+		   Grade_Or_Year (text), 
+		   Child_Name    (text),
+		   Academic_Year (text)
+
+l_eff_date = GET_CONTEXT(EFFECTIVE_DATE,'0001/01/01 00:00:00' (DATE))
+hr_id      = asg_hr_asg_id
+
+
+l_person_id          = TO_CHAR(GET_CONTEXT(PERSON_ID,0))
+l_amount             = 0
+l_previous_claim     = 0
+l_additional_payment = 0
+l_payment            = 0
+
+CALL_FORMULA('ALDAR Get HR Data',
+                hr_id       > 'hr_id',
+				l_eff_date  > 'eff_date',
+				'Grade'     > 'mode',
+				l_grade     < 'l_text'  DEFAULT 'X'
+			)
+
+l_citizenship = GET_VALUE_SET('ALDAR_EMPLOYEE_CITIZENSHIP','|=P_PERSON_ID='''||l_person_id||'''')
+
+l_emp_citz = replace (l_citizenship,' ','_')
+
+if l_emp_citz = 'United_Arab_Emirates' then
+(
+ 
+ l_citizen = 'NATIONAL'
+
+)
+else
+(
+
+ l_citizen = 'EXPATRIATE'
+ 
+)
+
+Entitlement_Amount = to_number(GET_TABLE_VALUE('ALDAR_SCHOOL_FEE_ELIGIBLE_AMOUNT',l_citizen,l_grade,'0'))
+Annual_Tuition_Fee = TO_NUMBER(GET_TABLE_VALUE('ALDAR_SCHOOL_FEE',School_Name,Grade_or_Year,'0'))
+Total_Entitlement  = Entitlement_Amount + ((Annual_Tuition_Fee)*(20/100))
+l_start_date = TO_DATE('01-01'||TO_CHAR(l_eff_date,'YYYY'),'DD-MM-YYYY')
+l_loop_start = ADD_MONTHS(l_start_date,-12)
+l_end_date   = TO_DATE('31-12'||TO_CHAR(l_eff_date,'YYYY'),'DD-MM-YYYY')
+l_loop_end   = ADD_MONTHS(l_start_date,12)
+
+l_loop_date = last_day(l_loop_start)
+
+WHILE (l_loop_date <= l_loop_end ) LOOP
+(
+    CHANGE_CONTEXTS(DATE_EARNED = l_loop_date, EFFECTIVE_DATE = l_loop_date)
+	(
+	
+	    l_count         = entry_element_entry_id.COUNT
+		i               = 1
+		l_prev_entry_id = '0'
+		
+		WHILE i <= l_count LOOP
+        (
+            l_entry_id = TO_CHAR(entry_element_entry_id[i])
+            
+			IF l_prev_entry_id = l_entry_id THEN
+            (
+	            l_amount  = l_amount + 0
+				l_payment = l_payment + 0
+				 
+            )
+			
+			ELSE
+			(
+			    l_previous_claim = TO_NUMBER(GET_VALUE_SET('ALDAR_SCHOOL_FEE_PREVIOUS_CLAIM','|=P_PERSON_ID='''||l_person_id||''''||
+	                                                                                         '|CHILD_NAME='''||Child_Name||''''||
+																				             '|ACADEMIC_YEAR='''||Academic_Year||''''||
+																				             '|P_DATE='''||TO_CHAR(l_loop_date,'DD-MM-YYYY')||''''||
+																							 '|P_ENTRY_ID='''||l_entry_id||'''')
+																				 
+						                    )
+								
+	            l_additional_payment = TO_NUMBER(GET_VALUE_SET('ALDAR_SCHOOL_FEE_ADDITIONAL_PAYMENT','|=P_PERSON_ID='''||l_person_id||''''||
+	                                                                                                 '|CHILD_NAME='''||Child_Name||''''||
+																				                     '|ACADEMIC_YEAR='''||Academic_Year||''''||
+																				                     '|P_DATE='''||TO_CHAR(l_loop_date,'DD-MM-YYYY')||''''||
+																									 '|P_ENTRY_ID='''||l_entry_id||'''')
+																				 
+						                        )
+    
+    
+	            IF ISNULL(l_previous_claim) <> 'N' THEN
+	            (
+	                l_amount = l_amount +  l_previous_claim	
+	            )
+
+	            IF ISNULL(l_additional_payment) <> 'N' THEN
+	            (
+	                l_payment = l_payment +  l_additional_payment	
+	            )
+			)
+			
+		    i = i + 1
+			l_prev_entry_id = l_entry_id
+		)
+	)
+	
+    l_loop_date = ADD_MONTHS(l_loop_date,1)
+)
+
+
+Previous_Claim      = l_amount + l_payment
+Balance_Entitlement = Total_Entitlement - Previous_Claim
+
+
+RETURN  Annual_Tuition_Fee, Total_Entitlement, Previous_Claim, Balance_Entitlement
